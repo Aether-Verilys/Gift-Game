@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-artistic {
+    font-family: 'Cormorant Garamond', 'Cinzel', 'Noto Serif SC', 'ZCOOL XiaoWei', Georgia, serif;
+  }
+  .font-garamond {
+    font-family: 'Cormorant Garamond', 'Cinzel', serif;
+  }
+  .font-cinzel {
+    font-family: 'Cinzel', 'Cormorant Garamond', serif;
+  }
+  .font-serif-sc {
+    font-family: 'Noto Serif SC', 'ZCOOL XiaoWei', serif;
+  }
+}
+
+body {
+  font-family: 'Cormorant Garamond', 'Cinzel', 'Noto Serif SC', -apple-system, BlinkMacSystemFont, serif;
+  background-color: #010104;
+  color: #f3f3f5;
+  letter-spacing: normal;
+}
+
+/* Artistic celestial typography enhancements */
+.text-glow-sm {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+}
+
+.text-glow-md {
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.75), 0 0 40px rgba(255, 255, 255, 0.25);
+}
