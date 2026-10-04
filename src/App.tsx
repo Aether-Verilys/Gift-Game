@@ -1,52 +1,62 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CosmicThreeScene } from './components/CosmicThreeScene';
-import { FloatingChoiceOverlay } from './components/FloatingChoiceOverlay';
-import { NarrationOverlay } from './components/NarrationOverlay';
+import { CardSelectionOverlay } from './components/CardSelectionOverlay';
+import { ApproachingOverlay } from './components/ApproachingOverlay';
+import { EncounterSceneHUD } from './components/EncounterSceneHUD';
+import { FinalReadingModal } from './components/FinalReadingModal';
 import { TopBar } from './components/TopBar';
 import { ChronicleModal } from './components/ChronicleModal';
-import { EndingModal } from './components/EndingModal';
-import { VignetteBar } from './components/VignetteBar';
-import { STORY_NODES, CONTINUOUS_VIGNETTES } from './data/storyData';
-import { StoryNode, Choice, PlayerStats, ChronicleEntry, WalkPace, CameraView } from './types';
+import { StageProgressHeader } from './components/StageProgressHeader';
+import { drawThreeCards } from './data/tarotDeck';
+import {
+  TarotCardDef,
+  StageRecord,
+  LLMInterpretation,
+  GamePhase,
+  ChronicleEntry,
+  WalkPace,
+  CameraView,
+  PlayerStats,
+} from './types';
 import { audioService } from './services/audioService';
 
 export default function App() {
-  const [currentNodeId, setCurrentNodeId] = useState<string>('start');
-  const [isChoiceVisible, setIsChoiceVisible] = useState<boolean>(true);
-  const [currentNarration, setCurrentNarration] = useState<string | null>(null);
-  const [sceneryShift, setSceneryShift] = useState<string>('normal');
+  // Game progression state (起因 · 经过 · 结果)
+  const [currentStage, setCurrentStage] = useState<number>(1);
+  const [gamePhase, setGamePhase] = useState<GamePhase>('card_selection');
+  const [stageCards, setStageCards] = useState<TarotCardDef[]>(() => drawThreeCards([]));
+  const [selectedCard, setSelectedCard] = useState<TarotCardDef | null>(null);
+  const [stageHistory, setStageHistory] = useState<StageRecord[]>([]);
+  const [finalHistory, setFinalHistory] = useState<StageRecord[]>([]);
+
+  // 3D Scene interaction states
   const [pace, setPace] = useState<WalkPace>('walk');
   const [view, setView] = useState<CameraView>('cinematic');
   const [viewToast, setViewToast] = useState<string | null>(null);
   const viewToastTimerRef = useRef<number | null>(null);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [approachProgress, setApproachProgress] = useState<number>(0);
+  const [giftOffered, setGiftOffered] = useState<boolean | null>(null);
+  const giftDecisionLockRef = useRef(false);
+
+  // LLM reading states
+  const [interpretation, setInterpretation] = useState<LLMInterpretation | null>(null);
+  const [isLlmLoading, setIsLlmLoading] = useState<boolean>(false);
+
+  // Controls & Modals
+  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [zenMode, setZenMode] = useState<boolean>(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState<boolean>(false);
-  const [endlessMode, setEndlessMode] = useState<boolean>(false);
-
-  // Player stats
-  const [stats, setStats] = useState<PlayerStats>({
-    bond: 0,
-    insight: 0,
-    starlight: 0,
-    voidAffinity: 0,
-  });
-
-  // Chronicle logs
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>([]);
-
-  // Distance in light-years
   const [distance, setDistance] = useState<number>(0);
 
-  // Subtle background quotes
-  const [vignetteIdx, setVignetteIdx] = useState<number>(0);
-  const [showVignette, setShowVignette] = useState<boolean>(false);
-
-  const currentNode: StoryNode = STORY_NODES[currentNodeId] || STORY_NODES['start'];
-
-  // Ref to track next node transition after narration
-  const pendingNextNodeId = useRef<string | null>(null);
+  // Player Stats derived from stage history
+  const [stats, setStats] = useState<PlayerStats>({
+    bond: 2,
+    insight: 2,
+    starlight: 2,
+    voidAffinity: 2,
+  });
 
   // Distance accumulation timer
   useEffect(() => {
@@ -61,23 +71,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [pace]);
 
-  // Subtle vignette cycling
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (!isChoiceVisible && !currentNarration && !currentNode.isEnding) {
-        setShowVignette(true);
-        setVignetteIdx((prev) => (prev + 1) % CONTINUOUS_VIGNETTES.length);
-
-        setTimeout(() => {
-          setShowVignette(false);
-        }, 7000);
-      }
-    }, 18000);
-
-    return () => clearInterval(timer);
-  }, [isChoiceVisible, currentNarration, currentNode.isEnding]);
-
-  // Handle first user gesture to unlock audio
+  // Audio gesture unlock
   useEffect(() => {
     const unlockAudio = () => {
       audioService.init();
@@ -92,6 +86,40 @@ export default function App() {
     };
   }, []);
 
+  // Approach progression timer when walking towards encounter
+  useEffect(() => {
+    if (gamePhase !== 'approaching') return;
+
+    setPace('walk');
+    const startTime = performance.now();
+    const duration = 3800; // 3.8 seconds walk to encounter
+
+    const interval = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      setApproachProgress(progress);
+
+      if (progress >= 1.0) {
+        clearInterval(interval);
+        setPace('pause');
+        audioService.playStarlightChime();
+        setGamePhase('encounter_decision');
+      }
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [gamePhase]);
+
+  // Manual skip to arrive immediately
+  const handleArriveImmediately = useCallback(() => {
+    if (gamePhase === 'approaching') {
+      setApproachProgress(1.0);
+      setPace('pause');
+      audioService.playStarlightChime();
+      setGamePhase('encounter_decision');
+    }
+  }, [gamePhase]);
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -99,11 +127,20 @@ export default function App() {
         return;
       }
 
-      // 1-4 for choices
-      if (isChoiceVisible && currentNode && !currentNode.isEnding) {
-        const keyNum = parseInt(e.key, 10);
-        if (keyNum >= 1 && keyNum <= currentNode.choices.length) {
-          handleSelectChoice(currentNode.choices[keyNum - 1]);
+      // Keys 1, 2, 3 for card selection (三选一)
+      if (gamePhase === 'card_selection' && stageCards.length >= 3) {
+        const num = parseInt(e.key, 10);
+        if (num >= 1 && num <= 3) {
+          handleSelectCard(stageCards[num - 1]);
+          return;
+        }
+      }
+
+      // Spacebar for arriving immediately if approaching
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (gamePhase === 'approaching') {
+          handleArriveImmediately();
           return;
         }
       }
@@ -123,67 +160,35 @@ export default function App() {
       if (e.key === 'b' || e.key === 'B') {
         setIsChronicleOpen((prev) => !prev);
       }
-
-      // Spacebar toggles walk/pause
-      if (e.code === 'Space') {
-        e.preventDefault();
-        setPace((prev) => (prev === 'pause' ? 'walk' : 'pause'));
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isChoiceVisible, currentNode]);
-
-  // Helper to trigger view change with audio & visual feedback
-  const handleChangeView = useCallback((newView: CameraView) => {
-    setView(newView);
-    audioService.playStarlightChime();
-    const labels: Record<CameraView, string> = {
-      cinematic: 'Perspective: Deep Space',
-      normal: 'Perspective: Trailing View',
-      close: 'Perspective: Companion View',
-    };
-    setViewToast(labels[newView]);
-    if (viewToastTimerRef.current) {
-      window.clearTimeout(viewToastTimerRef.current);
-    }
-    viewToastTimerRef.current = window.setTimeout(() => {
-      setViewToast(null);
-    }, 1500);
-  }, []);
+  }, [gamePhase, stageCards, handleArriveImmediately]);
 
   // Mouse wheel scroll to switch camera view mode
   const lastWheelTime = useRef<number>(0);
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      // Do not switch view if modal dialog is open or user is scrolling inside scrollable container
       if (isChronicleOpen) return;
       const target = e.target as HTMLElement | null;
-      if (target?.closest?.('#chronicle-dialog, #ending-container, [data-scrollable="true"]')) {
+      if (target?.closest?.('#chronicle-dialog, [data-scrollable="true"]')) {
         return;
       }
-
-      // Ignore micro-jitters
       if (Math.abs(e.deltaY) < 14) return;
 
       const now = performance.now();
-      // Throttle wheel view switching to prevent abrupt multiple jumps
       if (now - lastWheelTime.current < 260) return;
       lastWheelTime.current = now;
 
-      // Distance order: 'close' (nearest) -> 'normal' (medium) -> 'cinematic' (deep space)
       const zoomOrder: CameraView[] = ['close', 'normal', 'cinematic'];
-
       setView((currView) => {
         const currIndex = zoomOrder.indexOf(currView);
         let nextIndex = currIndex;
 
         if (e.deltaY < 0) {
-          // Scroll UP -> Zoom in (towards 'close')
           nextIndex = Math.max(0, currIndex - 1);
         } else {
-          // Scroll DOWN -> Zoom out (towards 'cinematic' Deep Space)
           nextIndex = Math.min(zoomOrder.length - 1, currIndex + 1);
         }
 
@@ -191,9 +196,9 @@ export default function App() {
         if (nextView !== currView) {
           audioService.playStarlightChime();
           const labels: Record<CameraView, string> = {
-            cinematic: 'Perspective: Deep Space',
-            normal: 'Perspective: Trailing View',
-            close: 'Perspective: Companion View',
+            cinematic: '视角: 远景 · 深空俯瞰',
+            normal: '视角: 尾随 · 漫步追踪',
+            close: '视角: 特写 · 侧身同行',
           };
           setViewToast(labels[nextView]);
           if (viewToastTimerRef.current) {
@@ -211,135 +216,285 @@ export default function App() {
     return () => window.removeEventListener('wheel', handleWheel);
   }, [isChronicleOpen]);
 
-  const hasResonatedRef = useRef<boolean>(false);
-  const handleRedObjectResonance = useCallback((state: { isDragging: boolean; distance: number; resonanceLevel: number }) => {
-    if (state.isDragging && state.distance < 7.0 && !hasResonatedRef.current) {
-      hasResonatedRef.current = true;
-      setStats((prev) => ({
-        ...prev,
-        starlight: prev.starlight + 1,
-        insight: prev.insight + 1,
-      }));
-      setViewToast('Scarlet Core · Celestial Gravitational Resonance');
-      if (viewToastTimerRef.current) {
-        window.clearTimeout(viewToastTimerRef.current);
-      }
-      viewToastTimerRef.current = window.setTimeout(() => {
-        setViewToast(null);
-      }, 2200);
-    }
-  }, []);
-
-  const handleSelectChoice = useCallback((choice: Choice) => {
-    // 1. Hide the choice card
-    setIsChoiceVisible(false);
-
-    // 2. Play wind/cosmic sweep
-    audioService.playWindWhisper();
-
-    // 3. Update stats
-    setStats((prev) => ({
-      bond: prev.bond + (choice.effects.bond || 0),
-      insight: prev.insight + (choice.effects.insight || 0),
-      starlight: prev.starlight + (choice.effects.starlight || 0),
-      voidAffinity: prev.voidAffinity + (choice.effects.voidAffinity || 0),
-    }));
-
-    // 4. Update Scenery Shift
-    if (choice.sceneryShift) {
-      setSceneryShift(choice.sceneryShift);
-    }
-
-    // 5. Record Chronicle entry
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    const newEntry: ChronicleEntry = {
-      timestamp: timeStr,
-      chapter: currentNode.chapter,
-      prompt: currentNode.prompt,
-      choiceMade: choice.text,
-      reflection: choice.narration,
-      statsDelta: choice.effects,
+  // Helper to trigger view change with toast
+  const handleChangeView = useCallback((newView: CameraView) => {
+    setView(newView);
+    audioService.playStarlightChime();
+    const labels: Record<CameraView, string> = {
+      cinematic: '视角: 远景 · 深空俯瞰',
+      normal: '视角: 尾随 · 漫步追踪',
+      close: '视角: 特写 · 侧身同行',
     };
-    setChronicle((prev) => [...prev, newEntry]);
-
-    // 6. Display Narration Toast
-    setCurrentNarration(choice.narration);
-    pendingNextNodeId.current = choice.nextNodeId;
-  }, [currentNode]);
-
-  const handleDismissNarration = useCallback(() => {
-    setCurrentNarration(null);
-    if (pendingNextNodeId.current) {
-      const nextId = pendingNextNodeId.current;
-      pendingNextNodeId.current = null;
-      setCurrentNodeId(nextId);
-
-      // If next node has choices, delay slightly for poetic atmosphere
-      const nextNode = STORY_NODES[nextId];
-      if (nextNode && !nextNode.isEnding) {
-        setTimeout(() => {
-          setIsChoiceVisible(true);
-        }, 700);
-      }
+    setViewToast(labels[newView]);
+    if (viewToastTimerRef.current) {
+      window.clearTimeout(viewToastTimerRef.current);
     }
+    viewToastTimerRef.current = window.setTimeout(() => {
+      setViewToast(null);
+    }, 1500);
   }, []);
 
-  const handleRestart = () => {
-    setCurrentNodeId('start');
-    setIsChoiceVisible(true);
-    setCurrentNarration(null);
-    setSceneryShift('normal');
+  // 1. Player selects a Tarot Card (三选一) in the Distant Sky View
+  const handleSelectCard = useCallback((card: TarotCardDef) => {
+    setSelectedCard(card);
+    setApproachProgress(0);
+    setGiftOffered(null);
+    giftDecisionLockRef.current = false;
+    setGamePhase('approaching');
+    audioService.playWindWhisper();
+  }, []);
+
+  // 2. Player makes the Gift decision at encounter (Drag in 3D or Click button)
+  const handleGiftDecision = useCallback(
+    (offered: boolean) => {
+      if (!selectedCard || giftOffered !== null || giftDecisionLockRef.current) return;
+      // Guard synchronously: timeout, drag, and button events can arrive in
+      // the same render before React commits giftOffered.
+      giftDecisionLockRef.current = true;
+      setGiftOffered(offered);
+
+      const orientation = offered ? 'reversed' : 'upright';
+
+      if (offered) {
+        audioService.playCrimsonResonance();
+        setTimeout(() => {
+          audioService.playTarotFlip();
+        }, 200);
+      } else {
+        audioService.playStarlightChime();
+        setTimeout(() => {
+          audioService.playChoiceConfirm();
+        }, 150);
+      }
+
+      // Update player stats
+      setStats((prev) => ({
+        bond: prev.bond + (offered ? 2 : 1),
+        insight: prev.insight + (offered ? 1 : 2),
+        starlight: prev.starlight + (offered ? 3 : 1),
+        voidAffinity: prev.voidAffinity + (offered ? 0 : 2),
+      }));
+
+      // Record stage history
+      const stageNameMap: Record<number, '起因' | '经过' | '结果'> = {
+        1: '起因',
+        2: '经过',
+        3: '结果',
+      };
+      const record: StageRecord = {
+        stage: currentStage,
+        stageName: stageNameMap[currentStage],
+        card: selectedCard,
+        orientation,
+        offeredGift: offered,
+        encounterName: selectedCard.encounter.name,
+        encounterDesc: selectedCard.encounter.prompt,
+      };
+
+      setStageHistory((prev) => {
+        const next = prev.some((item) => item.stage === currentStage)
+          ? prev.map((item) => (item.stage === currentStage ? record : item))
+          : [...prev, record];
+        if (currentStage === 3) setFinalHistory(next);
+        return next;
+      });
+
+      // Add to Chronicle log
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}`;
+      const entry: ChronicleEntry = {
+        timestamp: timeStr,
+        stage: currentStage,
+        card: selectedCard,
+        orientation,
+        offeredGift: offered,
+        encounterName: selectedCard.encounter.name,
+        reflection: offered
+          ? selectedCard.encounter.giftReactionOffered
+          : selectedCard.encounter.giftReactionKept,
+      };
+      setChronicle((prev) => [...prev, entry]);
+    },
+    [selectedCard, currentStage, giftOffered]
+  );
+
+  // 3. Advance to next stage or final LLM reading
+  const handleAdvanceStage = useCallback(() => {
+    if (currentStage < 3) {
+      const nextStage = currentStage + 1;
+      setCurrentStage(nextStage);
+      const usedIds = stageHistory.map((h) => h.card.id).concat(selectedCard ? [selectedCard.id] : []);
+      setStageCards(drawThreeCards(usedIds));
+      setSelectedCard(null);
+      setGiftOffered(null);
+      giftDecisionLockRef.current = false;
+      setApproachProgress(0);
+      setGamePhase('card_selection');
+      setPace('walk');
+    } else {
+      // Completed all 3 stages (起因、经过、结果)! Trigger final LLM reading
+      setGamePhase('final_reading');
+      setIsLlmLoading(true);
+
+      // React state updates are batched: the final gift decision may not have
+      // been committed to stageHistory when this callback runs. Include the
+      // current stage explicitly so the first play gets a complete reading.
+      const latestRecord = selectedCard && giftOffered !== null
+        ? {
+            stage: currentStage,
+            stageName: '结果' as const,
+            card: selectedCard,
+            orientation: giftOffered ? ('reversed' as const) : ('upright' as const),
+            offeredGift: giftOffered,
+            encounterName: selectedCard.encounter.name,
+            encounterDesc: selectedCard.encounter.prompt,
+          }
+        : null;
+      const historyByStage = new Map(stageHistory.map((record) => [record.stage, record]));
+      if (latestRecord) historyByStage.set(currentStage, latestRecord);
+      const fullHistory = Array.from(historyByStage.values()).sort((a, b) => a.stage - b.stage);
+      setFinalHistory(fullHistory);
+      fetch('/api/interpret', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageHistory: fullHistory }),
+      })
+        .then((res) => res.json())
+        .then((data: LLMInterpretation) => {
+          setInterpretation(data);
+          setIsLlmLoading(false);
+          audioService.playChoiceConfirm();
+        })
+        .catch((err) => {
+          console.error('Failed to get interpretation:', err);
+          setIsLlmLoading(false);
+        });
+    }
+  }, [currentStage, stageHistory, selectedCard, giftOffered]);
+
+  // Countdown timer for offering gift (时间过了就默认不给)
+  const [decisionTimeLeft, setDecisionTimeLeft] = useState<number>(10);
+  // Auto-advance timer (过了过一段时间也会进入下一阶段)
+  const [autoAdvanceTimeLeft, setAutoAdvanceTimeLeft] = useState<number>(3.5);
+
+  // Decision timer: when in encounter_decision and giftOffered === null
+  useEffect(() => {
+    if (gamePhase !== 'encounter_decision' || giftOffered !== null) return;
+
+    setDecisionTimeLeft(10);
+    const interval = setInterval(() => {
+      setDecisionTimeLeft((prev) => {
+        if (prev <= 0.15) {
+          clearInterval(interval);
+          handleGiftDecision(false); // 默认不给
+          return 0;
+        }
+        return Math.max(0, prev - 0.1);
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [gamePhase, giftOffered, handleGiftDecision]);
+
+  // Auto-advance timer: once gift decision is made in encounter_decision
+  useEffect(() => {
+    // The final stage must remain still long enough for the player to read the
+    // result. Only the first two stages advance automatically.
+    if (gamePhase !== 'encounter_decision' || giftOffered === null || currentStage >= 3) return;
+
+    setAutoAdvanceTimeLeft(3.5);
+    const interval = setInterval(() => {
+      setAutoAdvanceTimeLeft((prev) => {
+        if (prev <= 0.15) {
+          clearInterval(interval);
+          handleAdvanceStage(); // 自动进入下一阶段
+          return 0;
+        }
+        return Math.max(0, prev - 0.1);
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [gamePhase, giftOffered, currentStage, handleAdvanceStage]);
+
+  // Restart journey
+  const handleRestart = useCallback(() => {
+    giftDecisionLockRef.current = false;
+    setCurrentStage(1);
+    setGamePhase('card_selection');
+    setStageCards(drawThreeCards([]));
+    setSelectedCard(null);
+    setStageHistory([]);
+    setFinalHistory([]);
+    setInterpretation(null);
+    setIsLlmLoading(false);
+    setApproachProgress(0);
+    setGiftOffered(null);
+    setDecisionTimeLeft(10);
+    setAutoAdvanceTimeLeft(3.5);
     setPace('walk');
-    setEndlessMode(false);
-    setStats({
-      bond: 0,
-      insight: 0,
-      starlight: 0,
-      voidAffinity: 0,
-    });
-    setChronicle([]);
     setDistance(0);
-  };
+    setChronicle([]);
+    setStats({
+      bond: 2,
+      insight: 2,
+      starlight: 2,
+      voidAffinity: 2,
+    });
+  }, []);
 
-  const handleToggleMute = () => {
-    const muted = audioService.toggleMute();
-    setIsMuted(muted);
+  const stageChapterTitles: Record<number, string> = {
+    1: '起因之章 · 命运之始',
+    2: '经过之章 · 际遇之行',
+    3: '结果之章 · 终局归宿',
   };
-
-  const handleContinueEndless = () => {
-    setEndlessMode(true);
-    setPace('walk');
-  };
-
-  const currentVignette = CONTINUOUS_VIGNETTES[vignetteIdx];
 
   return (
-    <main id="app-root" className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none">
-      {/* 1. Fullscreen Three.js 3D Universe & Walking Duo */}
+    <main
+      id="app-root"
+      className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none"
+    >
+      {/* 1. Fullscreen Three.js 3D Scene with Dynamic Camera Steering, Celestial 3D Sky Cards and 3D Gift Dragging */}
       <CosmicThreeScene
         pace={pace}
         view={view}
-        sceneryShift={sceneryShift}
-        onRedObjectResonance={handleRedObjectResonance}
+        gamePhase={gamePhase}
+        stageCards={stageCards}
+        onSelectCard={handleSelectCard}
+        encounterActive={gamePhase === 'approaching' || gamePhase === 'encounter_decision'}
+        encounterType={selectedCard?.encounter.type || null}
+        approachProgress={approachProgress}
+        giftOffered={giftOffered}
+        onGiftDroppedOnEntity={() => handleGiftDecision(true)}
       />
 
-      {/* 2. Top Navigation & Status Bar */}
+      {/* 2. Top Navigation & Status Bar (Simplified, without pace buttons) */}
       <TopBar
-        currentChapter={currentNode.chapter}
+        currentChapter={stageChapterTitles[currentStage] || '星海漫游'}
         distance={distance}
-        pace={pace}
-        onChangePace={setPace}
         view={view}
         onChangeView={handleChangeView}
         isMuted={isMuted}
-        onToggleMute={handleToggleMute}
+        onToggleMute={() => {
+          const muted = audioService.toggleMute();
+          setIsMuted(muted);
+        }}
         onOpenChronicle={() => setIsChronicleOpen(true)}
         zenMode={zenMode}
         onToggleZenMode={() => setZenMode(!zenMode)}
         onRestart={handleRestart}
         stats={stats}
       />
+
+      {/* Stage Progress (起因 · 经过 · 结果) */}
+      {!zenMode && (
+        <div className="absolute top-16 left-6 z-30 pointer-events-auto">
+          <StageProgressHeader currentStage={currentStage} history={stageHistory} />
+        </div>
+      )}
 
       {/* Perspective Shift Toast Indicator */}
       <AnimatePresence>
@@ -349,54 +504,62 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.28, ease: 'easeOut' }}
-            className="absolute top-14 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
           >
             <div className="px-3.5 py-1 rounded-full bg-black/60 border border-white/20 backdrop-blur-md text-[11px] font-artistic text-white/80 tracking-[0.1em] uppercase shadow-[0_4px_20px_rgba(0,0,0,0.8)] flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
               <span>{viewToast}</span>
-              <span className="text-white/35 font-garamond text-[9px] tracking-normal lowercase ml-1">(scroll wheel to zoom)</span>
+              <span className="text-white/35 font-garamond text-[9px] tracking-normal lowercase ml-1">
+                (滚轮缩放)
+              </span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 3. Floating Choice in Mid-Air */}
+      {/* 3. Phase A: Card Selection (选牌时先切换到远景在空中选牌) */}
       {!zenMode && (
-        <FloatingChoiceOverlay
-          currentNode={currentNode}
-          onSelectChoice={handleSelectChoice}
-          isVisible={isChoiceVisible && !currentNarration}
+        <CardSelectionOverlay
+          stage={currentStage}
+          cards={stageCards}
+          onSelectCard={handleSelectCard}
+          isVisible={gamePhase === 'card_selection'}
         />
       )}
 
-      {/* 4. Poetic Reflection / Narration Overlay */}
+      {/* 4. Phase B: Walking Towards Encounter (选完拉进镜头看场景交互) */}
       {!zenMode && (
-        <NarrationOverlay
-          narration={currentNarration}
-          onDismiss={handleDismissNarration}
+        <ApproachingOverlay
+          stage={currentStage}
+          card={selectedCard}
+          onArrive={handleArriveImmediately}
+          isVisible={gamePhase === 'approaching'}
         />
       )}
 
-      {/* 5. Subtle Bottom Philosophical Vignette */}
-      {!zenMode && (
-        <VignetteBar
-          quote={currentVignette.quote}
-          author={currentVignette.author}
-          visible={showVignette && !isChoiceVisible && !currentNarration && !currentNode.isEnding}
+      {/* 5. Phase C: In-Scene HUD for Encounter & Red Gift Interaction (结合场景，非大遮罩弹窗) */}
+      {!zenMode && selectedCard && (
+        <EncounterSceneHUD
+          stage={currentStage}
+          card={selectedCard}
+          offeredGift={giftOffered}
+          decisionTimeLeft={decisionTimeLeft}
+          autoAdvanceTimeLeft={autoAdvanceTimeLeft}
+          isVisible={gamePhase === 'encounter_decision'}
+          onDecision={handleGiftDecision}
+          onContinue={handleAdvanceStage}
         />
       )}
 
-      {/* 6. Ending Screen */}
-      {currentNode.isEnding && currentNode.endingData && !endlessMode && (
-        <EndingModal
-          ending={currentNode.endingData}
-          stats={stats}
-          distance={distance}
-          onRestart={handleRestart}
-          onOpenChronicle={() => setIsChronicleOpen(true)}
-          onContinueEndless={handleContinueEndless}
-        />
-      )}
+      {/* 6. Phase D: Final Metaphorical Reading (LLM生成具象比喻) */}
+      <FinalReadingModal
+        history={finalHistory.length ? finalHistory : stageHistory}
+        interpretation={interpretation}
+        isLoading={isLlmLoading}
+        onRestart={handleRestart}
+        onOpenChronicle={() => setIsChronicleOpen(true)}
+        isOpen={gamePhase === 'final_reading'}
+      />
 
       {/* 7. Chronicle / Logbook Modal */}
       <ChronicleModal

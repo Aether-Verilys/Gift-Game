@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryNode, Choice } from '../types';
+import { TarotCard } from './TarotCard';
 import { audioService } from '../services/audioService';
 
 interface FloatingChoiceOverlayProps {
@@ -14,96 +15,82 @@ export const FloatingChoiceOverlay: React.FC<FloatingChoiceOverlayProps> = ({
   onSelectChoice,
   isVisible,
 }) => {
-  if (!isVisible || !currentNode || currentNode.isEnding || currentNode.choices.length === 0) {
+  const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
+
+  // Reset selected state when node changes
+  useEffect(() => {
+    setSelectedChoiceId(null);
+  }, [currentNode?.id]);
+
+  if (!isVisible || !currentNode || currentNode.isEnding || !currentNode.choices || currentNode.choices.length === 0) {
     return null;
   }
 
   const handleHover = () => {
-    audioService.playHoverChime();
+    if (!selectedChoiceId) {
+      audioService.playHoverChime();
+    }
   };
 
   const handleSelect = (choice: Choice) => {
-    audioService.playChoiceConfirm();
-    onSelectChoice(choice);
+    if (selectedChoiceId) return; // Prevent double trigger
+    setSelectedChoiceId(choice.id);
+    audioService.playTarotFlip();
+    setTimeout(() => {
+      audioService.playChoiceConfirm();
+    }, 150);
+
+    // Give a brief moment for the card flip/ascend animation before dismissing
+    setTimeout(() => {
+      onSelectChoice(choice);
+    }, 450);
   };
 
   return (
     <AnimatePresence mode="wait">
       <motion.div
         key={currentNode.id}
-        initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+        initial={{ opacity: 0, y: 16, filter: 'blur(8px)' }}
         animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        exit={{ opacity: 0, y: -12, filter: 'blur(6px)' }}
-        transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute top-20 md:top-24 lg:top-28 left-1/2 -translate-x-1/2 w-[94%] max-w-4xl z-20 pointer-events-auto text-center"
+        exit={{ opacity: 0, y: -16, filter: 'blur(8px)' }}
+        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+        className="absolute top-16 md:top-20 lg:top-24 left-1/2 -translate-x-1/2 w-full max-w-5xl z-20 pointer-events-auto text-center px-4"
       >
-        <div id={`choice-overlay-${currentNode.id}`} className="relative py-1 px-4">
-          {/* Chapter & Celestial Speaker Header: Delicate, Whisper-Quiet */}
-          <div className="flex items-center justify-center gap-2.5 text-[11px] md:text-[12px] tracking-[0.14em] text-white/40 font-garamond uppercase mb-2 select-none">
-            <span className="tracking-[0.12em]">{currentNode.chapter}</span>
+        <div id={`choice-overlay-${currentNode.id}`} className="relative py-2">
+          {/* Chapter & Speaker Header: Delicate, Whisper-Quiet */}
+          <div className="flex items-center justify-center gap-2 text-[11px] sm:text-xs tracking-[0.16em] text-white/45 font-garamond uppercase mb-1.5 select-none">
+            <span className="tracking-[0.18em]">{currentNode.chapter}</span>
             {currentNode.speaker && (
               <>
                 <span className="text-white/20">·</span>
-                <span className="tracking-[0.1em] text-white/55">{currentNode.speaker}</span>
+                <span className="tracking-[0.12em] text-white/60">{currentNode.speaker}</span>
               </>
             )}
           </div>
 
-          {/* Prompt: Poetic, Natural Flowing English Typography */}
-          <h2 className="text-white/90 font-artistic font-normal text-[15px] md:text-[16px] lg:text-[17px] leading-relaxed tracking-normal mb-4 text-glow-sm max-w-3xl mx-auto select-none">
+          {/* Crisp, Poetic Invitation Prompt (No walls of text!) */}
+          <h2 className="text-white/95 font-artistic font-normal text-base sm:text-lg md:text-xl tracking-[0.06em] mb-5 text-glow-sm max-w-2xl mx-auto select-none">
             {currentNode.prompt}
           </h2>
 
-          {/* Floating Choices: Natural English Spacing */}
-          <div className="space-y-2 max-w-3xl mx-auto">
-            {currentNode.choices.map((choice, idx) => {
-              const romanNums = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ'];
-              const numStr = romanNums[idx] || `0${idx + 1}`;
-              return (
-                <button
-                  key={choice.id}
-                  id={`choice-btn-${choice.id}`}
-                  onClick={() => handleSelect(choice)}
-                  onMouseEnter={handleHover}
-                  className="group relative w-full text-center py-1.5 px-4 cursor-pointer transition-all duration-300 block focus:outline-none"
-                >
-                  {/* Subtle Expanding Starlight Beam Underline on Hover */}
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 group-hover:w-3/5 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent transition-all duration-500 pointer-events-none" />
-
-                  {/* Single-Row / Slender Line Layout */}
-                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
-                    {/* Number index */}
-                    <span className="font-garamond italic text-xs md:text-sm text-white/35 group-hover:text-white/70 transition-colors duration-300">
-                      {numStr} ·
-                    </span>
-
-                    {/* Main choice title */}
-                    <span className="font-artistic text-[14px] md:text-[15px] text-white/80 group-hover:text-white group-hover:text-glow-md tracking-normal transition-all duration-300">
-                      {choice.text}
-                    </span>
-
-                    {/* Subtext attached seamlessly in natural English cadence */}
-                    {choice.subtext && (
-                      <span className="font-artistic italic text-[12px] md:text-[13px] text-white/40 group-hover:text-white/70 tracking-normal transition-colors duration-300 before:content-['—'] before:mr-2 before:text-white/20 hidden sm:inline">
-                        {choice.subtext}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Subtext on mobile screens if wrapped */}
-                  {choice.subtext && (
-                    <div className="font-artistic italic text-[11px] text-white/40 group-hover:text-white/70 tracking-normal mt-0.5 sm:hidden">
-                      {choice.subtext}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+          {/* Tarot Cards Spread */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 md:gap-8 mx-auto max-w-4xl py-2">
+            {currentNode.choices.map((choice, idx) => (
+              <TarotCard
+                key={choice.id}
+                choice={choice}
+                index={idx}
+                isSelected={selectedChoiceId === choice.id}
+                isAnySelected={selectedChoiceId !== null}
+                onSelect={handleSelect}
+                onHover={handleHover}
+              />
+            ))}
           </div>
 
           {/* Minimalist Hint */}
-          <div className="mt-3.5 text-[10px] md:text-[11px] text-white/25 font-garamond tracking-[0.14em] uppercase select-none">
-            [ Press 1-{currentNode.choices.length} to Choose · Heed the Stars ]
+          <div className="mt-4 sm:mt-5 text-[10px] sm:text-[11px] text-white/35 font-garamond tracking-[0.18em] uppercase select-none">
+            [ Draw a Tarot Card · Press 1-{currentNode.choices.length} or Click to Choose ]
           </div>
         </div>
       </motion.div>

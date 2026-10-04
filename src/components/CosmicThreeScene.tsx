@@ -1,12 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { WalkPace, CameraView } from '../types';
+import { WalkPace, CameraView, EncounterData, GamePhase, TarotCardDef } from '../types';
 import { audioService } from '../services/audioService';
+import { createTarotFrontTexture, createTarotBackTexture } from '../utils/tarotCanvasTexture';
 
 interface CosmicThreeSceneProps {
   pace: WalkPace;
   view: CameraView;
   sceneryShift?: string;
+  gamePhase?: GamePhase;
+  stageCards?: TarotCardDef[];
+  onSelectCard?: (card: TarotCardDef) => void;
+  encounterActive?: boolean;
+  encounterType?: EncounterData['type'] | null;
+  approachProgress?: number; // 0 to 1
+  giftOffered?: boolean | null; // true: offered, false: kept
+  onGiftDroppedOnEntity?: () => void;
   onRedObjectResonance?: (state: { isDragging: boolean; distance: number; resonanceLevel: number }) => void;
 }
 
@@ -14,6 +23,14 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   pace,
   view,
   sceneryShift = 'normal',
+  gamePhase = 'card_selection',
+  stageCards = [],
+  onSelectCard,
+  encounterActive = false,
+  encounterType = null,
+  approachProgress = 0,
+  giftOffered = null,
+  onGiftDroppedOnEntity,
   onRedObjectResonance,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -22,11 +39,24 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   const paceRef = useRef<WalkPace>(pace);
   const viewRef = useRef<CameraView>(view);
   const sceneryShiftRef = useRef<string>(sceneryShift);
+  const gamePhaseRef = useRef<GamePhase>(gamePhase);
+  const stageCardsRef = useRef<TarotCardDef[]>(stageCards);
+  const onSelectCardRef = useRef(onSelectCard);
+  const updateCardsCallback = useRef<((cards: TarotCardDef[]) => void) | null>(null);
+  const encounterActiveRef = useRef<boolean>(encounterActive);
+  const encounterTypeRef = useRef<EncounterData['type'] | null>(encounterType);
+  const approachProgressRef = useRef<number>(approachProgress);
+  const giftOfferedRef = useRef<boolean | null>(giftOffered);
+  const onGiftDroppedOnEntityRef = useRef(onGiftDroppedOnEntity);
   const onRedObjectResonanceRef = useRef(onRedObjectResonance);
 
   useEffect(() => {
     onRedObjectResonanceRef.current = onRedObjectResonance;
   }, [onRedObjectResonance]);
+
+  useEffect(() => {
+    onGiftDroppedOnEntityRef.current = onGiftDroppedOnEntity;
+  }, [onGiftDroppedOnEntity]);
 
   useEffect(() => {
     paceRef.current = pace;
@@ -39,6 +69,35 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   useEffect(() => {
     sceneryShiftRef.current = sceneryShift;
   }, [sceneryShift]);
+
+  useEffect(() => {
+    gamePhaseRef.current = gamePhase;
+  }, [gamePhase]);
+
+  useEffect(() => {
+    stageCardsRef.current = stageCards;
+    updateCardsCallback.current?.(stageCards);
+  }, [stageCards]);
+
+  useEffect(() => {
+    onSelectCardRef.current = onSelectCard;
+  }, [onSelectCard]);
+
+  useEffect(() => {
+    encounterActiveRef.current = encounterActive;
+  }, [encounterActive]);
+
+  useEffect(() => {
+    encounterTypeRef.current = encounterType;
+  }, [encounterType]);
+
+  useEffect(() => {
+    approachProgressRef.current = approachProgress;
+  }, [approachProgress]);
+
+  useEffect(() => {
+    giftOfferedRef.current = giftOffered;
+  }, [giftOffered]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -704,6 +763,54 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     armRGroup.add(armR);
     humanGroup.add(armRGroup);
 
+    // Traveling Satchel / Backpack on wanderer's back (红礼初始存放于此)
+    const backpackGroup = new THREE.Group();
+    backpackGroup.position.set(0, 1.45, 0.2);
+
+    const packGeo = new THREE.BoxGeometry(0.32, 0.44, 0.22);
+    const packFillMat = new THREE.MeshStandardMaterial({
+      color: 0x14141e,
+      roughness: 0.85,
+      metalness: 0.1,
+    });
+    const packMesh = new THREE.Mesh(packGeo, packFillMat);
+    backpackGroup.add(packMesh);
+
+    const packEdges = new THREE.EdgesGeometry(packGeo);
+    const packLine = new THREE.LineSegments(
+      packEdges,
+      new THREE.LineBasicMaterial({ color: 0x7a869e, transparent: true, opacity: 0.8, linewidth: 1.5 })
+    );
+    backpackGroup.add(packLine);
+
+    // Shoulder straps
+    const strapL = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.14, 0.2, 0.08),
+        new THREE.Vector3(-0.16, 0.35, -0.15),
+        new THREE.Vector3(-0.14, -0.18, -0.12),
+      ]),
+      new THREE.LineBasicMaterial({ color: 0x5a6378, linewidth: 1.5 })
+    );
+    backpackGroup.add(strapL);
+
+    const strapR = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0.14, 0.2, 0.08),
+        new THREE.Vector3(0.16, 0.35, -0.15),
+        new THREE.Vector3(0.14, -0.18, -0.12),
+      ]),
+      new THREE.LineBasicMaterial({ color: 0x5a6378, linewidth: 1.5 })
+    );
+    backpackGroup.add(strapR);
+
+    // Subtle internal crimson gem glow in pack socket
+    const packGlowLight = new THREE.PointLight(0xff2244, 1.4, 2.8);
+    packGlowLight.position.set(0, 0.18, 0.04);
+    backpackGroup.add(packGlowLight);
+
+    humanGroup.add(backpackGroup);
+
     // Reins connecting hand to horse muzzle
     const reinsCurve = new THREE.QuadraticBezierCurve3(
       new THREE.Vector3(0.3, 1.45, -0.85), // Human hand
@@ -746,12 +853,15 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
     // -------------------------------------------------------------
     // 9B. The Crimson Celestial Core (The Red Object)
-    // A mysterious, draggable ruby anomaly with gyroscopic celestial rings,
-    // orbiting corona sparks, and dynamic gravitational influence.
+    // Initially tucked inside the wanderer's traveling backpack,
+    // floats out when facing the encounter, and can be dragged to the entity.
     // -------------------------------------------------------------
+    const backpackOffset = new THREE.Vector3(0.95, 1.5, -0.45);
+    const hoveringEncounterPos = new THREE.Vector3(1.3, 2.2, -1.8);
     const redObjectGroup = new THREE.Group();
-    const initialRedPos = new THREE.Vector3(1.6, 2.9, -1.8);
+    const initialRedPos = backpackOffset.clone();
     redObjectGroup.position.copy(initialRedPos);
+    redObjectGroup.scale.set(0.35, 0.35, 0.35); // compact jewel in backpack
     const redTargetPos = initialRedPos.clone();
 
     // 1. Ruby Faceted Core (Octahedron crystal)
@@ -863,7 +973,420 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     const tetherLine = new THREE.Line(tetherGeo, tetherMat);
     scene.add(tetherLine);
 
-    // 10. Mouse Interaction for Parallax and Dragging
+    // -------------------------------------------------------------
+    // 9C. Dynamic Encounter Objects in 3D Space
+    // Materializes when a Tarot card is drawn, approaches the duo,
+    // and reacts dynamically when the red gift is offered or kept.
+    // -------------------------------------------------------------
+    const encounterRootGroup = new THREE.Group();
+    encounterRootGroup.position.set(0, 1.4, -25);
+    encounterRootGroup.visible = false;
+    scene.add(encounterRootGroup);
+
+    const encounterSubGroups: Record<string, THREE.Group> = {};
+
+    // 1. Seedling
+    const seedlingGroup = new THREE.Group();
+    const stemCurve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.15, 0.9, 0),
+      new THREE.Vector3(0.05, 1.7, 0)
+    );
+    const stemGeo = new THREE.BufferGeometry().setFromPoints(stemCurve.getPoints(16));
+    const stemLine = new THREE.Line(stemGeo, new THREE.LineBasicMaterial({ color: 0x90e0ef, linewidth: 2 }));
+    seedlingGroup.add(stemLine);
+    const budGeo = new THREE.SphereGeometry(0.25, 12, 12);
+    const budMesh = new THREE.Mesh(
+      budGeo,
+      new THREE.MeshStandardMaterial({ color: 0x00b4d8, emissive: 0x48cae4, emissiveIntensity: 2 })
+    );
+    budMesh.position.set(0.05, 1.7, 0);
+    seedlingGroup.add(budMesh);
+    const leafGeo = new THREE.ConeGeometry(0.3, 0.8, 4);
+    const leafMesh1 = new THREE.Mesh(leafGeo, new THREE.MeshBasicMaterial({ color: 0xade8f4, wireframe: true }));
+    leafMesh1.rotation.z = Math.PI * 0.35;
+    leafMesh1.position.set(-0.25, 0.9, 0);
+    seedlingGroup.add(leafMesh1);
+    const leafMesh2 = new THREE.Mesh(leafGeo, new THREE.MeshBasicMaterial({ color: 0xade8f4, wireframe: true }));
+    leafMesh2.rotation.z = -Math.PI * 0.35;
+    leafMesh2.position.set(0.35, 1.1, 0);
+    seedlingGroup.add(leafMesh2);
+    encounterSubGroups['seedling'] = seedlingGroup;
+    encounterRootGroup.add(seedlingGroup);
+
+    // 2. Beacon Spire
+    const beaconGroup = new THREE.Group();
+    const spireGeo = new THREE.CylinderGeometry(0.06, 0.45, 3.8, 6);
+    const spireWire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(spireGeo),
+      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
+    );
+    spireWire.position.y = 1.9;
+    beaconGroup.add(spireWire);
+    for (let r = 0; r < 3; r++) {
+      const ringMesh = new THREE.Mesh(
+        new THREE.TorusGeometry(0.6 + r * 0.45, 0.015, 8, 32),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.65 - r * 0.15 })
+      );
+      ringMesh.rotation.x = Math.PI / 2;
+      ringMesh.position.y = 2.4 + r * 0.5;
+      beaconGroup.add(ringMesh);
+    }
+    encounterSubGroups['beacon'] = beaconGroup;
+    encounterRootGroup.add(beaconGroup);
+
+    // 3. Monolith / Hypercube
+    const monolithGroup = new THREE.Group();
+    const tBoxOuter = new THREE.BoxGeometry(1.4, 2.8, 1.4);
+    const tOuterLines = new THREE.LineSegments(
+      new THREE.EdgesGeometry(tBoxOuter),
+      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
+    );
+    tOuterLines.position.y = 1.8;
+    monolithGroup.add(tOuterLines);
+    const tBoxInner = new THREE.BoxGeometry(0.8, 1.6, 0.8);
+    const tInnerLines = new THREE.LineSegments(
+      new THREE.EdgesGeometry(tBoxInner),
+      new THREE.LineBasicMaterial({ color: 0x90e0ef, linewidth: 1.5 })
+    );
+    tInnerLines.position.y = 1.8;
+    monolithGroup.add(tInnerLines);
+    encounterSubGroups['monolith'] = monolithGroup;
+    encounterRootGroup.add(monolithGroup);
+
+    // 4. Prism / Shards
+    const prismGroup = new THREE.Group();
+    for (let s = 0; s < 5; s++) {
+      const pGeo = new THREE.ConeGeometry(0.4 + (s % 3) * 0.15, 2.2 + s * 0.3, 5);
+      const pLines = new THREE.LineSegments(
+        new THREE.EdgesGeometry(pGeo),
+        new THREE.LineBasicMaterial({ color: 0xffffff })
+      );
+      pLines.position.set((s - 2) * 0.75, 1.2 + (s % 2) * 0.4, ((s % 3) - 1) * 0.4);
+      pLines.rotation.z = (s - 2) * 0.15;
+      prismGroup.add(pLines);
+    }
+    encounterSubGroups['prism'] = prismGroup;
+    encounterRootGroup.add(prismGroup);
+
+    // 5. Lantern
+    const lanternGroup = new THREE.Group();
+    const lBody = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.55, 0.65, 1.6, 8)),
+      new THREE.LineBasicMaterial({ color: 0xffffff })
+    );
+    lBody.position.y = 2.0;
+    lanternGroup.add(lBody);
+    const lLight = new THREE.PointLight(0xfff3b0, 2.5, 12);
+    lLight.position.y = 2.0;
+    lanternGroup.add(lLight);
+    encounterSubGroups['lantern'] = lanternGroup;
+    encounterRootGroup.add(lanternGroup);
+
+    // 6. Spring / Toroid
+    const springGroup = new THREE.Group();
+    const toroidMesh = new THREE.Mesh(
+      new THREE.TorusGeometry(1.5, 0.25, 16, 48),
+      new THREE.MeshStandardMaterial({ color: 0xade8f4, wireframe: true })
+    );
+    toroidMesh.rotation.x = Math.PI / 2;
+    toroidMesh.position.y = 1.6;
+    springGroup.add(toroidMesh);
+    encounterSubGroups['spring'] = springGroup;
+    encounterRootGroup.add(springGroup);
+
+    // 7. Chariot / Bridge
+    const chariotGroup = new THREE.Group();
+    const bridgeCurve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(-3.0, 0.4, 0),
+      new THREE.Vector3(0, 2.2, 0),
+      new THREE.Vector3(3.0, 0.4, 0)
+    );
+    const bridgeGeo = new THREE.BufferGeometry().setFromPoints(bridgeCurve.getPoints(24));
+    const bridgeLine = new THREE.Line(
+      bridgeGeo,
+      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
+    );
+    chariotGroup.add(bridgeLine);
+    encounterSubGroups['chariot'] = chariotGroup;
+    encounterRootGroup.add(chariotGroup);
+
+    // 8. Astrolabe
+    const astrolabeGroup = new THREE.Group();
+    const astroRing1 = new THREE.Mesh(
+      new THREE.TorusGeometry(1.6, 0.02, 12, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    const astroRing2 = new THREE.Mesh(
+      new THREE.TorusGeometry(1.2, 0.02, 12, 48),
+      new THREE.MeshBasicMaterial({ color: 0xe0e0e0 })
+    );
+    astroRing1.position.y = 1.8;
+    astroRing2.position.y = 1.8;
+    astroRing2.rotation.x = Math.PI * 0.4;
+    astrolabeGroup.add(astroRing1);
+    astrolabeGroup.add(astroRing2);
+    encounterSubGroups['astrolabe'] = astrolabeGroup;
+    encounterRootGroup.add(astrolabeGroup);
+
+    // 9. Twin Core
+    const twinCoreGroup = new THREE.Group();
+    const tc1 = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff4d6d, wireframe: true })
+    );
+    const tc2 = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true })
+    );
+    tc1.position.set(-0.8, 1.8, 0);
+    tc2.position.set(0.8, 1.8, 0);
+    twinCoreGroup.add(tc1);
+    twinCoreGroup.add(tc2);
+    encounterSubGroups['twin_core'] = twinCoreGroup;
+    encounterRootGroup.add(twinCoreGroup);
+
+    // 10. Gateway / Ouroboros
+    const gatewayGroup = new THREE.Group();
+    const gateArch = new THREE.Mesh(
+      new THREE.TorusGeometry(2.0, 0.06, 16, 64),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true })
+    );
+    gateArch.position.y = 2.2;
+    gatewayGroup.add(gateArch);
+    encounterSubGroups['gateway'] = gatewayGroup;
+    encounterRootGroup.add(gatewayGroup);
+
+    // -------------------------------------------------------------
+    // 10A. Encounter Sweeping Light Effect (扫光)
+    // Triggers when the red gift is dropped onto the Tarot object.
+    // -------------------------------------------------------------
+    const sweepLightGroup = new THREE.Group();
+    encounterRootGroup.add(sweepLightGroup);
+
+    const sweepRingGeo = new THREE.RingGeometry(0.2, 3.4, 36);
+    const sweepRingMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const sweepRingMesh = new THREE.Mesh(sweepRingGeo, sweepRingMat);
+    sweepRingMesh.rotation.x = -Math.PI / 2;
+    sweepLightGroup.add(sweepRingMesh);
+
+    const sweepCylGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.6, 32, 1, true);
+    const sweepCylMat = new THREE.MeshBasicMaterial({
+      color: 0xff4d6d,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const sweepCylMesh = new THREE.Mesh(sweepCylGeo, sweepCylMat);
+    sweepLightGroup.add(sweepCylMesh);
+
+    const sweepPointLight = new THREE.PointLight(0xff4466, 0, 26);
+    sweepLightGroup.add(sweepPointLight);
+
+    let sweepActive = false;
+    let sweepProgress = 0;
+    const sweepDuration = 1.25;
+
+    // Crimson burst sparks when gift dissolves/is absorbed
+    const burstSparkCount = 48;
+    const burstSparkGeo = new THREE.BufferGeometry();
+    const burstSparkPos = new Float32Array(burstSparkCount * 3);
+    const burstSparkVel: THREE.Vector3[] = [];
+    for (let b = 0; b < burstSparkCount; b++) {
+      burstSparkVel.push(new THREE.Vector3());
+    }
+    burstSparkGeo.setAttribute('position', new THREE.BufferAttribute(burstSparkPos, 3));
+    const burstSparkMat = new THREE.PointsMaterial({
+      size: 0.85,
+      map: dustTexture,
+      color: 0xff4466,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const burstSparkPoints = new THREE.Points(burstSparkGeo, burstSparkMat);
+    scene.add(burstSparkPoints);
+
+    let burstActive = false;
+    let burstTimer = 0;
+
+    const triggerGiftOffering = () => {
+      if (sweepActive) return;
+      sweepActive = true;
+      sweepProgress = 0;
+
+      // 1. Red gift disappears: hide & scale to 0
+      redObjectGroup.visible = false;
+      redObjectGroup.scale.set(0, 0, 0);
+      groundRingMat.opacity = 0;
+
+      // 2. Trigger crimson absorption spark burst
+      burstActive = true;
+      burstTimer = 0;
+      burstSparkMat.opacity = 1.0;
+      const burstOrigin = encounterRootGroup.position.clone();
+      burstOrigin.y += 1.2;
+      for (let b = 0; b < burstSparkCount; b++) {
+        burstSparkPos[b * 3] = burstOrigin.x;
+        burstSparkPos[b * 3 + 1] = burstOrigin.y;
+        burstSparkPos[b * 3 + 2] = burstOrigin.z;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = (Math.random() - 0.5) * Math.PI;
+        const speed = 2.5 + Math.random() * 4.5;
+        burstSparkVel[b].set(
+          Math.cos(phi) * Math.cos(theta) * speed,
+          Math.sin(phi) * speed + 1.8,
+          Math.cos(phi) * Math.sin(theta) * speed
+        );
+      }
+      burstSparkGeo.attributes.position.needsUpdate = true;
+
+      // 3. Audio & callback
+      audioService.playCrimsonResonance();
+      setTimeout(() => {
+        audioService.playChoiceConfirm();
+      }, 180);
+
+      onGiftDroppedOnEntityRef.current?.();
+    };
+
+    // -------------------------------------------------------------
+    // 10B. Celestial 3D Tarot Cards in the Upper Cosmic Sky
+    // Materializes during 'card_selection' phase in distant view.
+    // -------------------------------------------------------------
+    const cardsSkyGroup = new THREE.Group();
+    cardsSkyGroup.position.set(0, 0, 0);
+    cardsSkyGroup.visible = false;
+    scene.add(cardsSkyGroup);
+
+    interface Card3DItem {
+      group: THREE.Group;
+      mesh: THREE.Mesh;
+      hitbox: THREE.Mesh;
+      borderLines: THREE.LineSegments;
+      cardDef: TarotCardDef;
+      index: number;
+      initialPos: THREE.Vector3;
+      initialRot: THREE.Euler;
+      targetPos: THREE.Vector3;
+      targetRot: THREE.Euler;
+      targetScale: number;
+      isHovered: boolean;
+      isSelected: boolean;
+      spinProgress: number;
+    }
+    let cards3DList: Card3DItem[] = [];
+
+    const cardBoxGeo = new THREE.BoxGeometry(4.2, 6.6, 0.12);
+    const cardEdgesGeo = new THREE.EdgesGeometry(cardBoxGeo);
+
+    const rebuildSkyCards = (cards: TarotCardDef[]) => {
+      while (cardsSkyGroup.children.length > 0) {
+        const obj = cardsSkyGroup.children[0];
+        cardsSkyGroup.remove(obj);
+      }
+      cards3DList = [];
+
+      if (!cards || cards.length === 0) return;
+
+      const cardSpreadConfigs = [
+        { pos: new THREE.Vector3(-5.8, 8.2, 0.0), rot: new THREE.Euler(0, 0.18, 0.04) },
+        { pos: new THREE.Vector3(0.0, 8.6, 0.8), rot: new THREE.Euler(0, 0.0, 0.0) },
+        { pos: new THREE.Vector3(5.8, 8.2, 0.0), rot: new THREE.Euler(0, -0.18, -0.04) },
+      ];
+
+      cards.slice(0, 3).forEach((cardDef, idx) => {
+        const config = cardSpreadConfigs[idx] || cardSpreadConfigs[1];
+        const cardGroup = new THREE.Group();
+        cardGroup.position.copy(config.pos);
+        cardGroup.rotation.copy(config.rot);
+
+        const frontTex = createTarotFrontTexture(cardDef, idx, false);
+        const backTex = createTarotBackTexture();
+
+        const edgeMat = new THREE.MeshStandardMaterial({ color: 0x111118, roughness: 0.5, metalness: 0.3 });
+        const frontMat = new THREE.MeshStandardMaterial({
+          map: frontTex,
+          roughness: 0.25,
+          metalness: 0.15,
+          emissive: 0x050510,
+          emissiveIntensity: 0.8,
+        });
+        const backMat = new THREE.MeshStandardMaterial({
+          map: backTex,
+          roughness: 0.3,
+          metalness: 0.2,
+        });
+
+        const materials = [edgeMat, edgeMat, edgeMat, edgeMat, frontMat, backMat];
+        const cardMesh = new THREE.Mesh(cardBoxGeo, materials);
+        cardGroup.add(cardMesh);
+
+        const borderMat = new THREE.LineBasicMaterial({
+          color: 0xc8b273,
+          transparent: true,
+          opacity: 0.75,
+          linewidth: 2,
+        });
+        const borderLines = new THREE.LineSegments(cardEdgesGeo, borderMat);
+        cardGroup.add(borderLines);
+
+        const hitbox = new THREE.Mesh(
+          new THREE.BoxGeometry(4.6, 7.0, 0.8),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        cardGroup.add(hitbox);
+
+        cardsSkyGroup.add(cardGroup);
+
+        cards3DList.push({
+          group: cardGroup,
+          mesh: cardMesh,
+          hitbox,
+          borderLines,
+          cardDef,
+          index: idx,
+          initialPos: config.pos.clone(),
+          initialRot: config.rot.clone(),
+          targetPos: config.pos.clone(),
+          targetRot: config.rot.clone(),
+          targetScale: 1.0,
+          isHovered: false,
+          isSelected: false,
+          spinProgress: 0,
+        });
+      });
+    };
+
+    const triggerCardSelectAnimation = (selectedItem: Card3DItem) => {
+      if (selectedItem.isSelected) return;
+      selectedItem.isSelected = true;
+      audioService.playTarotFlip();
+      setTimeout(() => {
+        audioService.playChoiceConfirm();
+      }, 160);
+      setTimeout(() => {
+        onSelectCardRef.current?.(selectedItem.cardDef);
+      }, 480);
+    };
+
+    // Initialize 3D cards from current ref
+    rebuildSkyCards(stageCardsRef.current);
+    updateCardsCallback.current = (newCards) => {
+      rebuildSkyCards(newCards);
+    };
+
+    // 10C. Mouse Interaction for Parallax, 3D Cards, and Gift Dragging
     const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -880,32 +1403,48 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObject(redHitbox);
 
-      if (hits.length > 0) {
-        isDraggingRed = true;
-        try {
-          renderer.domElement.setPointerCapture?.(e.pointerId);
-        } catch {
-          // ignore
+      // Check click on 3D Tarot Cards in Sky
+      if (gamePhaseRef.current === 'card_selection' && cards3DList.length > 0) {
+        const hitboxes = cards3DList.map((c) => c.hitbox);
+        const cardHits = raycaster.intersectObjects(hitboxes);
+        if (cardHits.length > 0) {
+          const hitObj = cardHits[0].object;
+          const clickedItem = cards3DList.find((c) => c.hitbox === hitObj);
+          if (clickedItem && !clickedItem.isSelected) {
+            triggerCardSelectAnimation(clickedItem);
+            return;
+          }
         }
-        renderer.domElement.style.cursor = 'grabbing';
-        audioService.playCrimsonResonance();
+      }
 
-        // Build drag plane passing through red object facing camera
-        const camDir = new THREE.Vector3();
-        camera.getWorldDirection(camDir);
-        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), redObjectGroup.position);
+      // Check click on Red Object (Gift)
+      if (redObjectGroup.visible) {
+        const hits = raycaster.intersectObject(redHitbox);
+        if (hits.length > 0) {
+          isDraggingRed = true;
+          try {
+            renderer.domElement.setPointerCapture?.(e.pointerId);
+          } catch {
+            // ignore
+          }
+          renderer.domElement.style.cursor = 'grabbing';
+          audioService.playCrimsonResonance();
 
-        if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
-          dragOffset.copy(redObjectGroup.position).sub(planeIntersect);
+          const camDir = new THREE.Vector3();
+          camera.getWorldDirection(camDir);
+          dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), redObjectGroup.position);
+
+          if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
+            dragOffset.copy(redObjectGroup.position).sub(planeIntersect);
+          }
+
+          onRedObjectResonanceRef.current?.({
+            isDragging: true,
+            distance: redObjectGroup.position.distanceTo(duoGroup.position),
+            resonanceLevel: 1,
+          });
         }
-
-        onRedObjectResonanceRef.current?.({
-          isDragging: true,
-          distance: redObjectGroup.position.distanceTo(duoGroup.position),
-          resonanceLevel: 1,
-        });
       }
     };
 
@@ -919,10 +1458,38 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
       raycaster.setFromCamera(pointer, camera);
 
+      // 3D Card Hover Detection in Sky
+      if (gamePhaseRef.current === 'card_selection' && cards3DList.length > 0) {
+        const hitboxes = cards3DList.map((c) => c.hitbox);
+        const cardHits = raycaster.intersectObjects(hitboxes);
+        if (cardHits.length > 0) {
+          const hitObj = cardHits[0].object;
+          const hoveredItem = cards3DList.find((c) => c.hitbox === hitObj);
+          cards3DList.forEach((item) => {
+            const isTarget = item === hoveredItem;
+            if (isTarget && !item.isHovered) {
+              audioService.playHoverChime();
+            }
+            item.isHovered = isTarget;
+          });
+          renderer.domElement.style.cursor = 'pointer';
+          return;
+        } else {
+          let hadHover = false;
+          cards3DList.forEach((item) => {
+            if (item.isHovered) hadHover = true;
+            item.isHovered = false;
+          });
+          if (hadHover) {
+            renderer.domElement.style.cursor = 'default';
+          }
+        }
+      }
+
+      // Dragging Red Object
       if (isDraggingRed) {
         if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
           const desired = planeIntersect.clone().add(dragOffset);
-          // Safety limits within celestial sphere
           desired.y = Math.max(0.65, desired.y);
           desired.x = THREE.MathUtils.clamp(desired.x, -32, 32);
           desired.z = THREE.MathUtils.clamp(desired.z, -32, 32);
@@ -935,7 +1502,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
             resonanceLevel: Math.max(0, 1 - curDist / 15),
           });
         }
-      } else {
+      } else if (redObjectGroup.visible) {
         const hits = raycaster.intersectObject(redHitbox);
         if (hits.length > 0) {
           if (!isHoveringRed) {
@@ -966,6 +1533,18 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           distance: curDist,
           resonanceLevel: Math.max(0, 1 - curDist / 15),
         });
+
+        // Check if red gift was dragged towards and dropped onto the encounter entity
+        if (
+          encounterActiveRef.current &&
+          encounterRootGroup.visible &&
+          gamePhaseRef.current === 'encounter_decision'
+        ) {
+          const distToEncounter = redObjectGroup.position.distanceTo(encounterRootGroup.position);
+          if (distToEncounter < 5.2) {
+            triggerGiftOffering();
+          }
+        }
       }
     };
 
@@ -1138,20 +1717,172 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         tetherMat.opacity = THREE.MathUtils.lerp(tetherMat.opacity, 0, 0.1);
       }
 
-      // Camera Position by View
+      // Dynamic Encounter 3D Entity Animation & Gift Trajectory
+      if (encounterActiveRef.current && encounterTypeRef.current) {
+        encounterRootGroup.visible = true;
+        Object.keys(encounterSubGroups).forEach((k) => {
+          encounterSubGroups[k].visible = k === encounterTypeRef.current;
+        });
+
+        // Approach interpolation: from -24.0 (horizon) to -4.2 (right before duo)
+        const targetZ = THREE.MathUtils.lerp(-24.0, -4.2, approachProgressRef.current);
+        encounterRootGroup.position.z = THREE.MathUtils.lerp(encounterRootGroup.position.z, targetZ, 0.08);
+        encounterRootGroup.position.y = 1.2 + Math.sin(elapsed * 2.2) * 0.12;
+        encounterRootGroup.rotation.y += 0.008;
+
+        // Reactive Red Object & Sweep Light Animation
+        if (giftOfferedRef.current === true && !isDraggingRed) {
+          if (!sweepActive && redObjectGroup.visible) {
+            triggerGiftOffering();
+          }
+        } else if (giftOfferedRef.current === false && !isDraggingRed) {
+          // Kept gift: smoothly tucks back into character's backpack!
+          redObjectGroup.visible = true;
+          redTargetPos.set(backpackOffset.x, backpackOffset.y + humanGroup.position.y, backpackOffset.z);
+          redObjectGroup.scale.lerp(new THREE.Vector3(0.35, 0.35, 0.35), 0.08);
+          groundRingMat.opacity = THREE.MathUtils.lerp(groundRingMat.opacity, 0, 0.1);
+          redCoreMat.emissiveIntensity = 1.8 + Math.sin(elapsed * 2.5) * 0.5;
+        } else if (giftOfferedRef.current === null && !isDraggingRed) {
+          // Floating in front of wanderer ready to be offered
+          redObjectGroup.visible = true;
+          redTargetPos.copy(hoveringEncounterPos);
+          redObjectGroup.scale.lerp(new THREE.Vector3(1.0, 1.0, 1.0), 0.08);
+          groundRingMat.opacity = THREE.MathUtils.lerp(groundRingMat.opacity, 0.35, 0.08);
+          redCoreMat.emissiveIntensity = 2.4;
+        }
+      } else {
+        // When not in encounter decision, red gift rests inside character's backpack
+        if (!isDraggingRed && redObjectGroup.visible) {
+          redTargetPos.set(backpackOffset.x, backpackOffset.y + humanGroup.position.y, backpackOffset.z);
+          redObjectGroup.scale.lerp(new THREE.Vector3(0.35, 0.35, 0.35), 0.1);
+          groundRingMat.opacity = THREE.MathUtils.lerp(groundRingMat.opacity, 0, 0.1);
+          redCoreMat.emissiveIntensity = 1.6 + Math.sin(elapsed * 2.5) * 0.5;
+        }
+
+        if (encounterRootGroup.position.z > -28) {
+          encounterRootGroup.position.z -= dt * 8.0;
+        } else {
+          encounterRootGroup.visible = false;
+        }
+      }
+
+      // Re-enable Red Gift for next stage or reset (tucked inside backpack)
+      if (giftOfferedRef.current === null && !redObjectGroup.visible && gamePhaseRef.current !== 'encounter_decision') {
+        redObjectGroup.visible = true;
+        redObjectGroup.scale.set(0.35, 0.35, 0.35);
+        redObjectGroup.position.copy(backpackOffset);
+        redTargetPos.copy(backpackOffset);
+      }
+
+      // Update Sweep Light (扫光) on Tarot Object
+      if (sweepActive) {
+        sweepProgress += dt / sweepDuration;
+        const curY = THREE.MathUtils.lerp(-1.2, 4.4, sweepProgress);
+        sweepLightGroup.position.y = curY;
+
+        const ringScale = 0.8 + Math.sin(sweepProgress * Math.PI) * 1.8;
+        sweepRingMesh.scale.set(ringScale, ringScale, 1);
+        sweepCylMesh.scale.set(ringScale, 1, ringScale);
+
+        const alpha = Math.sin(sweepProgress * Math.PI);
+        sweepRingMat.opacity = alpha * 0.95;
+        sweepCylMat.opacity = alpha * 0.85;
+        sweepPointLight.intensity = alpha * 24.0;
+        sweepPointLight.position.y = curY;
+
+        if (sweepProgress >= 1.0) {
+          sweepActive = false;
+          sweepRingMat.opacity = 0;
+          sweepCylMat.opacity = 0;
+          sweepPointLight.intensity = 0;
+        }
+      }
+
+      // Update Crimson Burst Sparks
+      if (burstActive) {
+        burstTimer += dt;
+        const pAttr = burstSparkGeo.attributes.position as THREE.BufferAttribute;
+        for (let b = 0; b < burstSparkCount; b++) {
+          burstSparkPos[b * 3] += burstSparkVel[b].x * dt;
+          burstSparkPos[b * 3 + 1] += burstSparkVel[b].y * dt;
+          burstSparkPos[b * 3 + 2] += burstSparkVel[b].z * dt;
+          burstSparkVel[b].y -= dt * 2.2;
+          burstSparkVel[b].multiplyScalar(0.965);
+        }
+        pAttr.needsUpdate = true;
+        burstSparkMat.opacity = Math.max(0, 1.0 - burstTimer / 1.15);
+        if (burstTimer > 1.15) {
+          burstActive = false;
+          burstSparkMat.opacity = 0;
+        }
+      }
+
+      // 3D Tarot Cards in Sky Animation Loop
+      if (gamePhaseRef.current === 'card_selection') {
+        cardsSkyGroup.visible = true;
+        const anyCardSelected = cards3DList.some((c) => c.isSelected);
+
+        cards3DList.forEach((item) => {
+          if (item.isSelected) {
+            item.spinProgress += dt * 5.2;
+            item.group.rotation.y = item.initialRot.y + item.spinProgress * Math.PI * 2;
+            item.group.position.lerp(new THREE.Vector3(0, 8.6, 2.5), 0.08);
+            item.group.scale.lerp(new THREE.Vector3(1.15, 1.15, 1.15), 0.08);
+          } else if (anyCardSelected) {
+            item.group.scale.lerp(new THREE.Vector3(0, 0, 0), 0.12);
+            item.group.position.y -= dt * 3.0;
+          } else {
+            const bob = Math.sin(elapsed * 2.2 + item.index * 1.4) * 0.12;
+            if (item.isHovered) {
+              item.targetPos.set(item.initialPos.x, item.initialPos.y + bob, item.initialPos.z + 1.8);
+              item.targetRot.set(0, 0, 0);
+              item.targetScale = 1.08;
+              (item.borderLines.material as THREE.LineBasicMaterial).color.setHex(0xfff0aa);
+              (item.borderLines.material as THREE.LineBasicMaterial).opacity = 1.0;
+            } else {
+              item.targetPos.set(item.initialPos.x, item.initialPos.y + bob, item.initialPos.z);
+              item.targetRot.copy(item.initialRot);
+              item.targetScale = 1.0;
+              (item.borderLines.material as THREE.LineBasicMaterial).color.setHex(0xc8b273);
+              (item.borderLines.material as THREE.LineBasicMaterial).opacity = 0.7;
+            }
+            item.group.position.lerp(item.targetPos, 0.1);
+            item.group.rotation.x = THREE.MathUtils.lerp(item.group.rotation.x, item.targetRot.x, 0.1);
+            item.group.rotation.y = THREE.MathUtils.lerp(item.group.rotation.y, item.targetRot.y, 0.1);
+            item.group.rotation.z = THREE.MathUtils.lerp(item.group.rotation.z, item.targetRot.z, 0.1);
+            item.group.scale.lerp(new THREE.Vector3(item.targetScale, item.targetScale, item.targetScale), 0.1);
+          }
+        });
+      } else {
+        cardsSkyGroup.visible = false;
+      }
+
+      // Camera Position dynamically steered by Game Phase and Perspective
       const targetCam = new THREE.Vector3();
       const lookTarget = new THREE.Vector3();
 
-      if (viewRef.current === 'cinematic') {
-        // Ultra-distant deep-space panoramic vantage: pulled deep into the cosmic abyss, planetary horizon arching below
+      if (gamePhaseRef.current === 'card_selection') {
+        // Distant panoramic celestial view (远景) when choosing cards in the sky
+        targetCam.set(mouse.x * 2.0, 9.8 + mouse.y * 1.5, 22.0);
+        lookTarget.set(0, 8.4, 0);
+      } else if (gamePhaseRef.current === 'approaching') {
+        // Zoomed-in tracking camera (拉进镜头) following duo strides toward entity
+        targetCam.set(4.0 + mouse.x * 1.0, 3.2 + mouse.y * 0.8, 9.5);
+        lookTarget.set(-0.5, 2.6, -4.0);
+      } else if (gamePhaseRef.current === 'encounter_decision') {
+        // Intimate framing for scene interaction: duo, red gift, and entity
+        targetCam.set(2.4 + mouse.x * 0.6, 2.2 + mouse.y * 0.5, 5.8);
+        lookTarget.set(0.2, 1.6, -3.2);
+      } else if (viewRef.current === 'cinematic') {
+        // Ultra-distant deep-space panoramic vantage
         targetCam.set(18.0 + mouse.x * 2.5, 14.5 + mouse.y * 1.8, 45.0);
         lookTarget.set(-1.0, 3.8, -4.5);
       } else if (viewRef.current === 'close') {
-        // Intimate companion angle, framed with ample starry breathing room
+        // Intimate companion angle
         targetCam.set(3.2 + mouse.x * 0.8, 3.0 + mouse.y * 0.6, 7.2);
         lookTarget.set(-0.2, 2.8, -2.4);
       } else {
-        // Standard 3/4 trailing view: generous deep space perspective
+        // Standard 3/4 trailing view
         targetCam.set(4.8 + mouse.x * 1.2, 4.4 + mouse.y * 0.8, 11.0);
         lookTarget.set(-0.5, 3.8, -3.8);
       }

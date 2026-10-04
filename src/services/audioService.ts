@@ -1,6 +1,7 @@
 class AudioService {
   private ctx: AudioContext | null = null;
-  private isMuted: boolean = false;
+  // Start silent so audio never begins unexpectedly; the player can enable it.
+  private isMuted: boolean = true;
   private masterGain: GainNode | null = null;
   private droneGain: GainNode | null = null;
   private isInitialized: boolean = false;
@@ -258,6 +259,58 @@ class AudioService {
 
       osc.start(now);
       osc.stop(now + 2.3);
+    } catch {
+      // ignore
+    }
+  }
+
+  public playTarotDraw() {
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Shimmering mystical harp sweep
+      const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx || !this.masterGain) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+
+        gain.gain.setValueAtTime(0.04, now + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.05 + 0.6);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(now + idx * 0.05);
+        osc.stop(now + idx * 0.05 + 0.65);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  public playTarotFlip() {
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.22);
+
+      gain.gain.setValueAtTime(0.045, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(now);
+      osc.stop(now + 0.32);
     } catch {
       // ignore
     }

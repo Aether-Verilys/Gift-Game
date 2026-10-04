@@ -1,21 +1,16 @@
-# 星海漫步：宇宙漫游纪
+# Run and deploy your AI Studio app
 
-极简黑白宇宙互动漫游。独行者与白马踏过天体，头顶是粒子星野。
+This contains everything you need to run your app locally.
 
-## 本地运行
+View your app in AI Studio: https://ai.studio/apps/824fca43-9578-4c29-bfa2-824899bcf8c4
 
-**环境：** Node.js
+## Run Locally
 
-```bash
-npm install
-npm run dev
-```
+**Prerequisites:**  Node.js
 
-浏览器打开终端提示的本地地址即可。
 
-## 构建
-
-```bash
-npm run build
-npm run preview
-```
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
