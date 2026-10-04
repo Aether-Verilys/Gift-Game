@@ -96,17 +96,19 @@ function generatePoeticFallback(history: StageRecord[], focusSituation = deriveF
     situationReading: `就“${focusSituation}”而言，旅者的选择呈现出一种在靠近与保护之间反复校准的过程。旅者并非缺少答案，而是在评估投入之后的代价、关系是否可靠，以及什么边界必须保留。`,
     psychologicalInsight: `旅者可能会先观察风险和对方的回应，再决定是否投入。这种谨慎能保护你，也可能让你把等待确定感误当成行动前提。三次给予与保留显示，旅者正在练习把决定权从外部反馈拿回自己手中。`,
     selfAwareness: `旅者真正重视的不是“做对选择”，而是既不背叛自己的需要，也不让恐惧替你做决定。可以留意：你是在表达真实意愿，还是在提前避免失望？`,
+    fallback: true,
+    fallbackReason: 'AI 解读接口不可用，已使用本地备用解读。',
   };
 }
 
 // API endpoint to generate deep metaphorical interpretation
 app.post('/api/interpret', async (req, res) => {
   const { stageHistory } = req.body as { stageHistory: StageRecord[] };
-  const situation = deriveFocusSituation(stageHistory);
 
   if (!stageHistory || !Array.isArray(stageHistory) || stageHistory.length === 0) {
     return res.status(400).json({ error: 'Missing stageHistory data' });
   }
+  const situation = deriveFocusSituation(stageHistory);
 
   // If no Gemini key is provided, gracefully use the handcrafted poetic engine
   if (!apiKey) {

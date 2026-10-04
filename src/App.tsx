@@ -22,6 +22,19 @@ import {
 import { audioService } from './services/audioService';
 
 export default function App() {
+  const createClientFallback = useCallback((history: StageRecord[]): LLMInterpretation => {
+    const first = history[0];
+    const topic = first ? `围绕“${first.card.nameZh}”展开的选择与自我定位` : '当下正在形成的选择与方向';
+    return {
+      metaphorTitle: `关于${topic}的内在地图`,
+      situationReading: `旅者正在靠近与保护之间反复校准。当前议题未必缺少答案，更像是在衡量投入的代价、回应是否可靠，以及哪些边界需要保留。牌面只能提供观察角度，不能替代现实中的事实与决定。`,
+      psychologicalInsight: `旅者可能先观察风险与反馈，再决定是否投入。这种谨慎能带来安全感，也可能让等待确定感变成行动的门槛。三次选择显示，旅者正在练习把判断权从外部回应逐步拿回自己手中。`,
+      selfAwareness: `可以留意：旅者此刻是在表达真实需要，还是在提前避免失望？把这两个动机分开，才能更清楚地理解下一次选择。`,
+      fallback: true,
+      fallbackReason: '解读接口暂时不可用，已使用本地备用解读。',
+    };
+  }, []);
+
   // Game progression state (起因 · 经过 · 结果)
   const [currentStage, setCurrentStage] = useState<number>(1);
   const [gamePhase, setGamePhase] = useState<GamePhase>('card_selection');
@@ -42,6 +55,7 @@ export default function App() {
   // LLM reading states
   const [interpretation, setInterpretation] = useState<LLMInterpretation | null>(null);
   const [isLlmLoading, setIsLlmLoading] = useState<boolean>(false);
+  const [isFallbackReading, setIsFallbackReading] = useState<boolean>(false);
 
   // Controls & Modals
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -362,18 +376,25 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stageHistory: fullHistory }),
       })
-        .then((res) => res.json())
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || '解读接口调用失败');
+          return data as LLMInterpretation;
+        })
         .then((data: LLMInterpretation) => {
           setInterpretation(data);
+          setIsFallbackReading(Boolean(data.fallback));
           setIsLlmLoading(false);
           audioService.playChoiceConfirm();
         })
         .catch((err) => {
           console.error('Failed to get interpretation:', err);
+          setInterpretation(createClientFallback(fullHistory));
+          setIsFallbackReading(true);
           setIsLlmLoading(false);
         });
     }
-  }, [currentStage, stageHistory, selectedCard, giftOffered]);
+  }, [currentStage, stageHistory, selectedCard, giftOffered, createClientFallback]);
 
   // Countdown timer for offering gift (时间过了就默认不给)
   const [decisionTimeLeft, setDecisionTimeLeft] = useState<number>(10);
@@ -430,6 +451,7 @@ export default function App() {
     setStageHistory([]);
     setFinalHistory([]);
     setInterpretation(null);
+    setIsFallbackReading(false);
     setIsLlmLoading(false);
     setApproachProgress(0);
     setGiftOffered(null);
@@ -559,6 +581,7 @@ export default function App() {
         onRestart={handleRestart}
         onOpenChronicle={() => setIsChronicleOpen(true)}
         isOpen={gamePhase === 'final_reading'}
+        isFallback={isFallbackReading}
       />
 
       {/* 7. Chronicle / Logbook Modal */}

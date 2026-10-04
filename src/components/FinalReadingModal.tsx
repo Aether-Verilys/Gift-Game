@@ -11,6 +11,7 @@ interface FinalReadingModalProps {
   onRestart: () => void;
   onOpenChronicle: () => void;
   isOpen: boolean;
+  isFallback?: boolean;
 }
 
 export const FinalReadingModal: React.FC<FinalReadingModalProps> = ({
@@ -20,6 +21,7 @@ export const FinalReadingModal: React.FC<FinalReadingModalProps> = ({
   onRestart,
   onOpenChronicle,
   isOpen,
+  isFallback = false,
 }) => {
   if (!isOpen) return null;
 
@@ -59,6 +61,14 @@ export const FinalReadingModal: React.FC<FinalReadingModalProps> = ({
         {/* Completed Reading */}
         {!isLoading && interpretation && (
           <div>
+            {isFallback && (
+              <div className="mb-5 rounded border border-amber-300/30 bg-amber-300/[0.06] p-4 text-left">
+                <div className="text-xs font-artistic text-amber-200 mb-2">当前显示备用解读</div>
+                <p className="text-[11px] leading-relaxed text-white/60">
+                  AI 解读接口暂时不可用，以下内容由本地规则生成。要启用完整解读，请在部署平台的环境变量中配置 <code className="text-amber-100">GEMINI_API_KEY</code>，然后重新部署应用。
+                </p>
+              </div>
+            )}
             {/* Header */}
             <div className="text-center pb-4 mb-5 border-b border-white/10">
               <div className="flex items-center justify-center gap-2 text-[10px] sm:text-[11px] tracking-[0.25em] text-white/40 font-garamond uppercase mb-1">

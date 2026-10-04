@@ -65,6 +65,8 @@ export interface LLMInterpretation {
   situationReading: string;
   psychologicalInsight: string;
   selfAwareness: string;
+  fallback?: boolean;
+  fallbackReason?: string;
 }
 
 export type GamePhase =
