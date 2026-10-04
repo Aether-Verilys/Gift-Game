@@ -1578,9 +1578,11 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       // Advance walk cycle
       walkCycle += dt * 3.6 * speedMult;
 
-      // Rotate planet beneath them
+      // Rotate the ground in the opposite direction of travel. The horse and
+      // wanderer face toward -Z (the encounter), so the terrain must drift
+      // toward +Z beneath their feet to make them visibly advance forward.
       const planetRotSpeed = 0.04 * speedMult;
-      planetGroup.rotation.x -= dt * planetRotSpeed;
+      planetGroup.rotation.x += dt * planetRotSpeed;
 
       // Subtle celestial rotation & realistic astronomical scintillation
       celestialGroup.rotation.y = elapsed * 0.012;
