@@ -2,12 +2,14 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TarotCardDef } from '../types';
 import { Compass, Sparkles } from 'lucide-react';
+import { Language, copy, stageCopy } from '../i18n';
 
 interface ApproachingOverlayProps {
   card: TarotCardDef | null;
   stage: number;
   onArrive: () => void;
   isVisible: boolean;
+  language: Language;
 }
 
 export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
@@ -15,6 +17,7 @@ export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
   stage,
   onArrive,
   isVisible,
+  language,
 }) => {
   if (!isVisible || !card) return null;
 
@@ -31,13 +34,13 @@ export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#ff3355] animate-pulse" />
             <span className="text-xs font-garamond tracking-[0.14em] uppercase text-white/50">
-              {stage === 1 ? '起因之章' : stage === 2 ? '经过之章' : '结果之章'} · 步向造物
+              {stageCopy(language, stage)} · {copy[language].walk}
             </span>
           </div>
 
           <div className="text-xs sm:text-sm font-artistic tracking-[0.06em] text-white flex items-center gap-1.5">
-            <span>正漫步靠近：</span>
-            <span className="text-white text-glow-sm font-medium">{card.encounter.name}</span>
+            <span>{copy[language].approaching}</span>
+            <span className="text-white text-glow-sm font-medium">{language === 'zh' ? '即将抵达' : 'Almost there'}</span>
           </div>
 
           <button
@@ -46,7 +49,7 @@ export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
             title="按下空格或点击立即抵达"
           >
             <Sparkles className="w-3 h-3 text-white/70 group-hover:text-white" />
-            <span>立即抵达 (Space)</span>
+            <span>{copy[language].arrive}</span>
           </button>
         </div>
       </motion.div>

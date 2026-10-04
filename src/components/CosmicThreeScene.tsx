@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { WalkPace, CameraView, EncounterData, GamePhase, TarotCardDef } from '../types';
 import { audioService } from '../services/audioService';
 import { createTarotFrontTexture, createTarotBackTexture } from '../utils/tarotCanvasTexture';
-import { createHierophant } from '../utils/createHierophant';
+import { createTarotEntities } from '../utils/createTarotEntities';
 
 interface CosmicThreeSceneProps {
   pace: WalkPace;
@@ -979,209 +979,25 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     // Materializes when a Tarot card is drawn, approaches the duo,
     // and reacts dynamically when the red gift is offered or kept.
     // -------------------------------------------------------------
+    // The entity approaches the traveler, then stops before the model's
+    // collision envelope reaches the horse or rider.
+    const encounterApproachStartZ = -32;
+    const encounterStopZ = -25;
     const encounterRootGroup = new THREE.Group();
     encounterRootGroup.position.set(0, 0, -32);
     encounterRootGroup.visible = false;
     scene.add(encounterRootGroup);
 
-    const encounterSubGroups: Record<string, THREE.Group> = {};
+    const encounterSubGroups: Record<string, THREE.Group> = createTarotEntities();
+    const monumentLight = new THREE.DirectionalLight(0xe4eaff, 2.4);
+    monumentLight.position.set(20, 45, 25);
+    scene.add(monumentLight);
 
-    // 1. Seedling
-    const seedlingGroup = new THREE.Group();
-    const stemCurve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0.15, 0.9, 0),
-      new THREE.Vector3(0.05, 1.7, 0)
-    );
-    const stemGeo = new THREE.BufferGeometry().setFromPoints(stemCurve.getPoints(16));
-    const stemLine = new THREE.Line(stemGeo, new THREE.LineBasicMaterial({ color: 0x90e0ef, linewidth: 2 }));
-    seedlingGroup.add(stemLine);
-    const budGeo = new THREE.SphereGeometry(0.25, 12, 12);
-    const budMesh = new THREE.Mesh(
-      budGeo,
-      new THREE.MeshStandardMaterial({ color: 0x00b4d8, emissive: 0x48cae4, emissiveIntensity: 2 })
-    );
-    budMesh.position.set(0.05, 1.7, 0);
-    seedlingGroup.add(budMesh);
-    const leafGeo = new THREE.ConeGeometry(0.3, 0.8, 4);
-    const leafMesh1 = new THREE.Mesh(leafGeo, new THREE.MeshBasicMaterial({ color: 0xade8f4, wireframe: true }));
-    leafMesh1.rotation.z = Math.PI * 0.35;
-    leafMesh1.position.set(-0.25, 0.9, 0);
-    seedlingGroup.add(leafMesh1);
-    const leafMesh2 = new THREE.Mesh(leafGeo, new THREE.MeshBasicMaterial({ color: 0xade8f4, wireframe: true }));
-    leafMesh2.rotation.z = -Math.PI * 0.35;
-    leafMesh2.position.set(0.35, 1.1, 0);
-    seedlingGroup.add(leafMesh2);
-    encounterSubGroups['seedling'] = seedlingGroup;
-    encounterRootGroup.add(seedlingGroup);
-
-    // 2. Beacon Spire
-    const beaconGroup = new THREE.Group();
-    const spireGeo = new THREE.CylinderGeometry(0.06, 0.45, 3.8, 6);
-    const spireWire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(spireGeo),
-      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
-    );
-    spireWire.position.y = 1.9;
-    beaconGroup.add(spireWire);
-    for (let r = 0; r < 3; r++) {
-      const ringMesh = new THREE.Mesh(
-        new THREE.TorusGeometry(0.6 + r * 0.45, 0.015, 8, 32),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.65 - r * 0.15 })
-      );
-      ringMesh.rotation.x = Math.PI / 2;
-      ringMesh.position.y = 2.4 + r * 0.5;
-      beaconGroup.add(ringMesh);
-    }
-    encounterSubGroups['beacon'] = beaconGroup;
-    encounterRootGroup.add(beaconGroup);
-
-    // 3. Monolith / Hypercube
-    const monolithGroup = new THREE.Group();
-    const tBoxOuter = new THREE.BoxGeometry(1.4, 2.8, 1.4);
-    const tOuterLines = new THREE.LineSegments(
-      new THREE.EdgesGeometry(tBoxOuter),
-      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
-    );
-    tOuterLines.position.y = 1.8;
-    monolithGroup.add(tOuterLines);
-    const tBoxInner = new THREE.BoxGeometry(0.8, 1.6, 0.8);
-    const tInnerLines = new THREE.LineSegments(
-      new THREE.EdgesGeometry(tBoxInner),
-      new THREE.LineBasicMaterial({ color: 0x90e0ef, linewidth: 1.5 })
-    );
-    tInnerLines.position.y = 1.8;
-    monolithGroup.add(tInnerLines);
-    encounterSubGroups['monolith'] = monolithGroup;
-    encounterRootGroup.add(monolithGroup);
-
-    // 4. Prism / Shards
-    const prismGroup = new THREE.Group();
-    for (let s = 0; s < 5; s++) {
-      const pGeo = new THREE.ConeGeometry(0.4 + (s % 3) * 0.15, 2.2 + s * 0.3, 5);
-      const pLines = new THREE.LineSegments(
-        new THREE.EdgesGeometry(pGeo),
-        new THREE.LineBasicMaterial({ color: 0xffffff })
-      );
-      pLines.position.set((s - 2) * 0.75, 1.2 + (s % 2) * 0.4, ((s % 3) - 1) * 0.4);
-      pLines.rotation.z = (s - 2) * 0.15;
-      prismGroup.add(pLines);
-    }
-    encounterSubGroups['prism'] = prismGroup;
-    encounterRootGroup.add(prismGroup);
-
-    // 5. Lantern
-    const lanternGroup = new THREE.Group();
-    const lBody = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.55, 0.65, 1.6, 8)),
-      new THREE.LineBasicMaterial({ color: 0xffffff })
-    );
-    lBody.position.y = 2.0;
-    lanternGroup.add(lBody);
-    const lLight = new THREE.PointLight(0xfff3b0, 2.5, 12);
-    lLight.position.y = 2.0;
-    lanternGroup.add(lLight);
-    encounterSubGroups['lantern'] = lanternGroup;
-    encounterRootGroup.add(lanternGroup);
-
-    // 6. Spring / Toroid
-    const springGroup = new THREE.Group();
-    const toroidMesh = new THREE.Mesh(
-      new THREE.TorusGeometry(1.5, 0.25, 16, 48),
-      new THREE.MeshStandardMaterial({ color: 0xade8f4, wireframe: true })
-    );
-    toroidMesh.rotation.x = Math.PI / 2;
-    toroidMesh.position.y = 1.6;
-    springGroup.add(toroidMesh);
-    encounterSubGroups['spring'] = springGroup;
-    encounterRootGroup.add(springGroup);
-
-    // 7. Chariot / Bridge
-    const chariotGroup = new THREE.Group();
-    const bridgeCurve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(-3.0, 0.4, 0),
-      new THREE.Vector3(0, 2.2, 0),
-      new THREE.Vector3(3.0, 0.4, 0)
-    );
-    const bridgeGeo = new THREE.BufferGeometry().setFromPoints(bridgeCurve.getPoints(24));
-    const bridgeLine = new THREE.Line(
-      bridgeGeo,
-      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
-    );
-    chariotGroup.add(bridgeLine);
-    encounterSubGroups['chariot'] = chariotGroup;
-    encounterRootGroup.add(chariotGroup);
-
-    // 8. Astrolabe
-    const astrolabeGroup = new THREE.Group();
-    const astroRing1 = new THREE.Mesh(
-      new THREE.TorusGeometry(1.6, 0.02, 12, 48),
-      new THREE.MeshBasicMaterial({ color: 0xffffff })
-    );
-    const astroRing2 = new THREE.Mesh(
-      new THREE.TorusGeometry(1.2, 0.02, 12, 48),
-      new THREE.MeshBasicMaterial({ color: 0xe0e0e0 })
-    );
-    astroRing1.position.y = 1.8;
-    astroRing2.position.y = 1.8;
-    astroRing2.rotation.x = Math.PI * 0.4;
-    astrolabeGroup.add(astroRing1);
-    astrolabeGroup.add(astroRing2);
-    encounterSubGroups['astrolabe'] = astrolabeGroup;
-    encounterRootGroup.add(astrolabeGroup);
-
-    // 9. Twin Core
-    const twinCoreGroup = new THREE.Group();
-    const tc1 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xff4d6d, wireframe: true })
-    );
-    const tc2 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true })
-    );
-    tc1.position.set(-0.8, 1.8, 0);
-    tc2.position.set(0.8, 1.8, 0);
-    twinCoreGroup.add(tc1);
-    twinCoreGroup.add(tc2);
-    encounterSubGroups['twin_core'] = twinCoreGroup;
-    encounterRootGroup.add(twinCoreGroup);
-
-    // 10. Gateway / Ouroboros
-    const gatewayGroup = new THREE.Group();
-    const gateArch = new THREE.Mesh(
-      new THREE.TorusGeometry(2.0, 0.06, 16, 64),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true })
-    );
-    gateArch.position.y = 2.2;
-    gatewayGroup.add(gateArch);
-    encounterSubGroups['gateway'] = gatewayGroup;
-    encounterRootGroup.add(gatewayGroup);
-
-    const hierophantGroup = createHierophant();
-    encounterSubGroups['hierophant'] = hierophantGroup;
-    encounterRootGroup.add(hierophantGroup);
-
-    // The sun card also needs a materialized entity (previously it was absent).
-    const sunGroup = new THREE.Group();
-    const sunOrb = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2),
-      new THREE.MeshBasicMaterial({ color: 0xffe7ad, wireframe: true }));
-    sunOrb.position.y = 2.1;
-    sunGroup.add(sunOrb);
-    const sunPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.9, 1.3, 10), blackFillMat);
-    sunPedestal.position.y = 0.65;
-    const sunPedestalEdges = new THREE.LineSegments(new THREE.EdgesGeometry(sunPedestal.geometry), horseLineMat);
-    sunPedestalEdges.position.copy(sunPedestal.position);
-    sunGroup.add(sunPedestal, sunPedestalEdges);
-    encounterSubGroups['sun'] = sunGroup;
-    encounterRootGroup.add(sunGroup);
-
-    // Normalize each entity's feet to a common ground plane. At 22 units tall,
-    // a monument towers over the roughly 1.5-unit traveler without engulfing them.
+    // Double the previous 22 / 24 unit envelope, keeping each solid model grounded.
     for (const [type, model] of Object.entries(encounterSubGroups)) {
       const bounds = new THREE.Box3().setFromObject(model);
       const size = bounds.getSize(new THREE.Vector3());
-      const scale = Math.min(22 / size.y, 24 / Math.max(size.x, size.z));
+      const scale = Math.min(44 / size.y, 48 / Math.max(size.x, size.z));
       model.scale.setScalar(scale);
       model.position.y = 0.5 - bounds.min.y * scale;
       const monument = new THREE.Group();
@@ -1205,7 +1021,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     // Triggers when the red gift is dropped onto the Tarot object.
     // -------------------------------------------------------------
     const sweepLightGroup = new THREE.Group();
-    sweepLightGroup.scale.setScalar(5);
+    sweepLightGroup.scale.setScalar(10);
     encounterRootGroup.add(sweepLightGroup);
 
     const sweepRingGeo = new THREE.RingGeometry(0.2, 3.4, 36);
@@ -1774,7 +1590,9 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         });
 
         // Follow the spherical surface during approach, then stand still.
-        const groundZ = THREE.MathUtils.lerp(-32, -16, approachProgressRef.current);
+        // Keep a generous buffer in front of the scaled-up monument. The
+        // visible model can extend several units toward +Z after normalization.
+        const groundZ = THREE.MathUtils.lerp(encounterApproachStartZ, encounterStopZ, approachProgressRef.current);
         const groundY = Math.sqrt(planetRadius * planetRadius - groundZ * groundZ);
         encounterRootGroup.position.set(0, groundY - planetRadius, groundZ);
         surfaceNormal.set(0, groundY, groundZ).normalize();
@@ -1823,7 +1641,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       // Update Sweep Light (扫光) on Tarot Object
       if (sweepActive) {
         sweepProgress += dt / sweepDuration;
-        const curY = THREE.MathUtils.lerp(0, 24, sweepProgress);
+        const curY = THREE.MathUtils.lerp(0, 48, sweepProgress);
         sweepLightGroup.position.y = curY;
 
         const ringScale = 0.8 + Math.sin(sweepProgress * Math.PI) * 1.8;
@@ -1913,12 +1731,12 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         lookTarget.set(0, 8.4, 0);
       } else if (gamePhaseRef.current === 'approaching') {
         // Zoomed-in tracking camera (拉进镜头) following duo strides toward entity
-        targetCam.set(11 + mouse.x, 4.5 + mouse.y * 0.4, 24 / Math.min(1, camera.aspect));
-        lookTarget.set(0, 6.8, -15);
+        targetCam.set(11 + mouse.x, 8 + mouse.y * 0.4, 40 / Math.min(1, camera.aspect));
+        lookTarget.set(0, 18, -15);
       } else if (gamePhaseRef.current === 'encounter_decision') {
         // Intimate framing for scene interaction: duo, red gift, and entity
-        targetCam.set(10 + mouse.x * 0.6, 3.2 + mouse.y * 0.3, 20 / Math.min(1, camera.aspect));
-        lookTarget.set(0, 7.5, -13);
+        targetCam.set(10 + mouse.x * 0.6, 6 + mouse.y * 0.3, 38 / Math.min(1, camera.aspect));
+        lookTarget.set(0, 19, -13);
       } else if (viewRef.current === 'cinematic') {
         // Ultra-distant deep-space panoramic vantage
         targetCam.set(18.0 + mouse.x * 2.5, 14.5 + mouse.y * 1.8, 45.0);

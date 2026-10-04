@@ -3,20 +3,23 @@ import { motion } from 'motion/react';
 import { StageRecord } from '../types';
 import { TarotSymbol } from './TarotSvgSymbols';
 import { Gift, Shield, Sparkles } from 'lucide-react';
+import { Language, copy, stageCopy } from '../i18n';
 
 interface StageProgressHeaderProps {
   currentStage: number; // 1, 2, or 3
   history: StageRecord[];
+  language?: Language;
 }
 
 export const StageProgressHeader: React.FC<StageProgressHeaderProps> = ({
   currentStage,
   history,
+  language = 'zh',
 }) => {
   const stageLabels: Record<number, string> = {
-    1: '起因',
-    2: '经过',
-    3: '结果',
+    1: language === 'zh' ? '起因' : 'ORIGIN',
+    2: language === 'zh' ? '经过' : 'PASSAGE',
+    3: language === 'zh' ? '结果' : 'OUTCOME',
   };
 
   return (
@@ -24,7 +27,7 @@ export const StageProgressHeader: React.FC<StageProgressHeaderProps> = ({
       {/* Subtle Title Badge */}
       <div className="flex items-center gap-2 mb-2 text-[10px] tracking-[0.2em] font-garamond uppercase text-white/45">
         <Sparkles className="w-3 h-3 text-white/50" />
-        <span>DESTINY ARC · 宿命轨迹</span>
+        <span>{language === 'zh' ? 'DESTINY ARC · 宿命轨迹' : 'DESTINY ARC · THE JOURNEY'}</span>
       </div>
 
       {/* 3-Stage Card Tray */}
@@ -99,7 +102,7 @@ export const StageProgressHeader: React.FC<StageProgressHeaderProps> = ({
                   ✦
                 </div>
                 <div className="text-center text-[8px] font-artistic text-white/70">
-                  进行中
+                  {language === 'zh' ? '进行中' : 'IN PROGRESS'}
                 </div>
               </div>
             );
@@ -117,7 +120,7 @@ export const StageProgressHeader: React.FC<StageProgressHeaderProps> = ({
                 ·
               </div>
               <div className="text-center text-[8px] font-artistic text-white/25">
-                待抽取
+                {language === 'zh' ? '待抽取' : 'AWAITING DRAW'}
               </div>
             </div>
           );

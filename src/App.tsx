@@ -7,8 +7,9 @@ import { EncounterSceneHUD } from './components/EncounterSceneHUD';
 import { FinalReadingModal } from './components/FinalReadingModal';
 import { TopBar } from './components/TopBar';
 import { ChronicleModal } from './components/ChronicleModal';
+import { TarotCollectionModal } from './components/TarotCollectionModal';
 import { StageProgressHeader } from './components/StageProgressHeader';
-import { drawThreeCards } from './data/tarotDeck';
+import { ALL_TAROT_CARDS, drawThreeCards } from './data/tarotDeck';
 import {
   TarotCardDef,
   StageRecord,
@@ -20,6 +21,20 @@ import {
   PlayerStats,
 } from './types';
 import { audioService } from './services/audioService';
+import { Language, copy, stageCopy } from './i18n';
+
+const TAROT_COLLECTION_KEY = 'gift-game.unlocked-tarot.v1';
+
+function readUnlockedCards(): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(TAROT_COLLECTION_KEY) || '[]');
+    return Array.isArray(saved)
+      ? ALL_TAROT_CARDS.filter((card) => saved.includes(card.id)).map((card) => card.id)
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function App() {
   const createClientFallback = useCallback((history: StageRecord[]): LLMInterpretation => {
@@ -59,10 +74,23 @@ export default function App() {
 
   // Controls & Modals
   const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('gift-game.language') as Language) || 'zh');
   const [zenMode, setZenMode] = useState<boolean>(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState<boolean>(false);
+  const [isCollectionOpen, setIsCollectionOpen] = useState(false);
+  const [unlockedCardIds, setUnlockedCardIds] = useState<string[]>(readUnlockedCards);
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>([]);
   const [distance, setDistance] = useState<number>(0);
+
+  useEffect(() => { localStorage.setItem('gift-game.language', language); }, [language]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TAROT_COLLECTION_KEY, JSON.stringify(unlockedCardIds));
+    } catch {
+      // Keep this session's collection available when browser storage is unavailable.
+    }
+  }, [unlockedCardIds]);
 
   // Player Stats derived from stage history
   const [stats, setStats] = useState<PlayerStats>({
@@ -137,6 +165,7 @@ export default function App() {
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isCollectionOpen) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -178,13 +207,13 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gamePhase, stageCards, handleArriveImmediately]);
+  }, [gamePhase, stageCards, handleArriveImmediately, isCollectionOpen]);
 
   // Mouse wheel scroll to switch camera view mode
   const lastWheelTime = useRef<number>(0);
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (isChronicleOpen) return;
+      if (isChronicleOpen || isCollectionOpen) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('#chronicle-dialog, [data-scrollable="true"]')) {
         return;
@@ -209,12 +238,7 @@ export default function App() {
         const nextView = zoomOrder[nextIndex];
         if (nextView !== currView) {
           audioService.playStarlightChime();
-          const labels: Record<CameraView, string> = {
-            cinematic: '视角: 远景 · 深空俯瞰',
-            normal: '视角: 尾随 · 漫步追踪',
-            close: '视角: 特写 · 侧身同行',
-          };
-          setViewToast(labels[nextView]);
+          setViewToast(null);
           if (viewToastTimerRef.current) {
             window.clearTimeout(viewToastTimerRef.current);
           }
@@ -228,18 +252,13 @@ export default function App() {
 
     window.addEventListener('wheel', handleWheel, { passive: true });
     return () => window.removeEventListener('wheel', handleWheel);
-  }, [isChronicleOpen]);
+  }, [isChronicleOpen, isCollectionOpen]);
 
   // Helper to trigger view change with toast
   const handleChangeView = useCallback((newView: CameraView) => {
     setView(newView);
     audioService.playStarlightChime();
-    const labels: Record<CameraView, string> = {
-      cinematic: '视角: 远景 · 深空俯瞰',
-      normal: '视角: 尾随 · 漫步追踪',
-      close: '视角: 特写 · 侧身同行',
-    };
-    setViewToast(labels[newView]);
+    setViewToast(null);
     if (viewToastTimerRef.current) {
       window.clearTimeout(viewToastTimerRef.current);
     }
@@ -250,6 +269,7 @@ export default function App() {
 
   // 1. Player selects a Tarot Card (三选一) in the Distant Sky View
   const handleSelectCard = useCallback((card: TarotCardDef) => {
+    setUnlockedCardIds((prev) => prev.includes(card.id) ? prev : [...prev, card.id]);
     setSelectedCard(card);
     setApproachProgress(0);
     setGiftOffered(null);
@@ -443,6 +463,7 @@ export default function App() {
 
   // Restart journey
   const handleRestart = useCallback(() => {
+    setIsCollectionOpen(false);
     giftDecisionLockRef.current = false;
     setCurrentStage(1);
     setGamePhase('card_selection');
@@ -469,9 +490,9 @@ export default function App() {
   }, []);
 
   const stageChapterTitles: Record<number, string> = {
-    1: '起因之章 · 命运之始',
-    2: '经过之章 · 际遇之行',
-    3: '结果之章 · 终局归宿',
+    1: stageCopy(language, 1),
+    2: stageCopy(language, 2),
+    3: stageCopy(language, 3),
   };
 
   return (
@@ -509,12 +530,14 @@ export default function App() {
         onToggleZenMode={() => setZenMode(!zenMode)}
         onRestart={handleRestart}
         stats={stats}
+        language={language}
+        onLanguageChange={setLanguage}
       />
 
       {/* Stage Progress (起因 · 经过 · 结果) */}
       {!zenMode && (
         <div className="absolute top-16 left-6 z-30 pointer-events-auto">
-          <StageProgressHeader currentStage={currentStage} history={stageHistory} />
+          <StageProgressHeader currentStage={currentStage} history={stageHistory} language={language} />
         </div>
       )}
 
@@ -539,13 +562,14 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 3. Phase A: Card Selection (选牌时先切换到远景在空中选牌) */}
+      {/* 3. Phase A: Card Selection */}
       {!zenMode && (
         <CardSelectionOverlay
           stage={currentStage}
           cards={stageCards}
           onSelectCard={handleSelectCard}
           isVisible={gamePhase === 'card_selection'}
+          language={language}
         />
       )}
 
@@ -556,6 +580,7 @@ export default function App() {
           card={selectedCard}
           onArrive={handleArriveImmediately}
           isVisible={gamePhase === 'approaching'}
+          language={language}
         />
       )}
 
@@ -570,6 +595,7 @@ export default function App() {
           isVisible={gamePhase === 'encounter_decision'}
           onDecision={handleGiftDecision}
           onContinue={handleAdvanceStage}
+          language={language}
         />
       )}
 
@@ -582,6 +608,8 @@ export default function App() {
         onOpenChronicle={() => setIsChronicleOpen(true)}
         isOpen={gamePhase === 'final_reading'}
         isFallback={isFallbackReading}
+        language={language}
+        onOpenCollection={() => setIsCollectionOpen(true)}
       />
 
       {/* 7. Chronicle / Logbook Modal */}
@@ -591,6 +619,12 @@ export default function App() {
         entries={chronicle}
         stats={stats}
         distance={distance}
+      />
+      <TarotCollectionModal
+        isOpen={isCollectionOpen}
+        onClose={() => setIsCollectionOpen(false)}
+        cards={ALL_TAROT_CARDS}
+        unlockedCardIds={unlockedCardIds}
       />
     </main>
   );

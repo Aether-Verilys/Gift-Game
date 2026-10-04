@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TarotCardDef } from '../types';
 import { Gift, Shield, ArrowRight, Move, Clock, Sparkles } from 'lucide-react';
+import { Language, copy, stageCopy } from '../i18n';
 
 interface EncounterSceneHUDProps {
   card: TarotCardDef;
@@ -12,6 +13,7 @@ interface EncounterSceneHUDProps {
   onDecision: (offeredGift: boolean) => void;
   onContinue: () => void;
   isVisible: boolean;
+  language: Language;
 }
 
 export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
@@ -23,13 +25,12 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
   onDecision,
   onContinue,
   isVisible,
+  language,
 }) => {
   if (!isVisible) return null;
 
   const stageNames: Record<number, string> = {
-    1: '起因',
-    2: '经过',
-    3: '结果',
+    1: stageCopy(language, 1), 2: stageCopy(language, 2), 3: stageCopy(language, 3),
   };
 
   const reactionText =
@@ -58,10 +59,10 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                 <span className="w-2.5 h-2.5 rounded-full bg-[#ff3355] animate-ping" />
                 <div>
                   <div className="text-[10px] font-garamond uppercase tracking-[0.16em] text-white/50">
-                    {stageNames[stage]}之章 · 邂逅
+                    {stageNames[stage]} · {copy[language].encounter}
                   </div>
                   <div className="text-xs sm:text-sm font-artistic text-white tracking-[0.04em] font-medium text-glow-sm">
-                    {card.encounter.name}
+                    {language === 'zh' ? '前方实体' : 'Entity ahead'}
                   </div>
                 </div>
               </div>
@@ -71,7 +72,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                 <div className="flex items-center gap-1.5 text-xs font-artistic text-white/85 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
                   <Move className="w-3.5 h-3.5 text-[#ff4d6d] animate-pulse flex-shrink-0" />
                   <span className="truncate">
-                    将背包浮出的红礼<strong className="text-red-300 font-normal">拖至造物</strong>交付
+                    {copy[language].drag}
                   </span>
                 </div>
 
@@ -98,7 +99,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                   title="交付礼物（翻转为逆位）"
                 >
                   <Gift className="w-3 h-3 text-red-400" />
-                  <span>交付红礼 (逆)</span>
+                  <span>{copy[language].give}</span>
                 </button>
 
                 <button
@@ -107,7 +108,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                   title="保留礼物（坚守顺位）"
                 >
                   <Shield className="w-3 h-3 text-white/50" />
-                  <span>保留 (顺)</span>
+                  <span>{copy[language].keep}</span>
                 </button>
               </div>
             </div>
@@ -138,7 +139,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                 <div className="flex items-center gap-2 text-[10px] font-garamond uppercase tracking-[0.16em] text-white/50">
                   <span>{stageNames[stage]}之章</span>
                   <span>·</span>
-                  <span className="text-white/80">{card.encounter.name}</span>
+                <span className="text-white/80">{language === 'zh' ? '实体回应' : 'Entity responds'}</span>
                 </div>
 
                 <div

@@ -103,7 +103,7 @@ export const ChronicleModal: React.FC<ChronicleModalProps> = ({
 
                 <div className="flex items-center justify-between text-[11px] text-white/35 mb-1.5 font-garamond tracking-[0.06em] uppercase">
                   <span className="font-artistic">
-                    {entry.stage === 1 ? '起因之章' : entry.stage === 2 ? '经过之章' : '结果之章'} · {entry.encounterName}
+                    {entry.stage === 1 ? '起因之章' : entry.stage === 2 ? '经过之章' : '结果之章'}
                   </span>
                   <span>{entry.timestamp}</span>
                 </div>

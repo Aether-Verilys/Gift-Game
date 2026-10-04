@@ -1,6 +1,7 @@
 import React from 'react';
 import { Volume2, VolumeX, BookOpen, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { CameraView, PlayerStats } from '../types';
+import { Language, copy } from '../i18n';
 
 interface TopBarProps {
   currentChapter: string;
@@ -14,6 +15,8 @@ interface TopBarProps {
   onToggleZenMode: () => void;
   onRestart: () => void;
   stats: PlayerStats;
+  language: Language;
+  onLanguageChange: (language: Language) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -28,6 +31,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleZenMode,
   onRestart,
   stats,
+  language,
+  onLanguageChange,
 }) => {
   if (zenMode) {
     return (
@@ -38,7 +43,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         title="Exit Zen Mode (Press H)"
       >
         <Eye className="w-4 h-4" />
-        <span className="tracking-[0.2em]">Show Interface (H)</span>
+        <span className="tracking-[0.2em]">{copy[language].show}</span>
       </button>
     );
   }
@@ -68,45 +73,32 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Middle Stats (Affinity indicators) */}
       <div className="hidden lg:flex items-center gap-6 text-xs font-artistic text-white/35 pointer-events-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
         <span title="漫步者与白马的心灵羁绊" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          Bond <span className="font-garamond text-white/50">{stats.bond}</span>
+          {language === 'zh' ? '羁绊' : 'Bond'} <span className="font-garamond text-white/50">{stats.bond}</span>
         </span>
         <span title="对宇宙秩序与虚空的哲思洞察" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          Insight <span className="font-garamond text-white/50">{stats.insight}</span>
+          {language === 'zh' ? '洞察' : 'Insight'} <span className="font-garamond text-white/50">{stats.insight}</span>
         </span>
         <span title="抵抗虚无的恒星灵曦" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          Starlight <span className="font-garamond text-white/50">{stats.starlight}</span>
+          {language === 'zh' ? '星光' : 'Starlight'} <span className="font-garamond text-white/50">{stats.starlight}</span>
         </span>
         <span title="静默与熵增的安宁共处" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          Void <span className="font-garamond text-white/50">{stats.voidAffinity}</span>
+          {language === 'zh' ? '虚空' : 'Void'} <span className="font-garamond text-white/50">{stats.voidAffinity}</span>
         </span>
         <span
           title="场景中的绯红礼物：拖拽可直接与造物共鸣"
           className="text-[#ff4d6d]/70 hover:text-[#ff4d6d] transition-colors tracking-[0.06em] uppercase text-[10px] hidden xl:flex items-center gap-1.5 cursor-help"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[#ff3355] animate-pulse" />
-          <span>Scarlet Gift</span>
+          <span>{language === 'zh' ? '绯红礼物' : 'Scarlet Gift'}</span>
         </span>
       </div>
 
       {/* Right Controls: Minimalist icons */}
       <div className="flex items-center gap-3 md:gap-4 pointer-events-auto">
-        {/* View Perspective Toggle */}
-        <button
-          id="view-toggle-btn"
-          onClick={() => {
-            const nextView: Record<CameraView, CameraView> = {
-              normal: 'cinematic',
-              cinematic: 'close',
-              close: 'normal',
-            };
-            onChangeView(nextView[view]);
-          }}
-          className="text-white/45 hover:text-white text-[11px] font-artistic transition-colors cursor-pointer hidden md:inline tracking-[0.08em] uppercase"
-          title="Toggle Perspective (or scroll mouse wheel to zoom)"
-        >
-          [ 视角: {view === 'normal' ? '尾随' : view === 'cinematic' ? '远景' : '特写'} ]
-        </button>
-
+        <div className="flex items-center rounded border border-white/15 bg-black/20 p-0.5 text-[10px] font-artistic" aria-label={copy[language].language}>
+          <button onClick={() => onLanguageChange('zh')} className={`px-1.5 py-1 cursor-pointer ${language === 'zh' ? 'bg-white/20 text-white' : 'text-white/40'}`}>中</button>
+          <button onClick={() => onLanguageChange('en')} className={`px-1.5 py-1 cursor-pointer ${language === 'en' ? 'bg-white/20 text-white' : 'text-white/40'}`}>EN</button>
+        </div>
         {/* Audio Toggle */}
         <button
           id="audio-toggle-btn"

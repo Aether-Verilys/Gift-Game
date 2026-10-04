@@ -35,7 +35,7 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
       name: '悬浮的时空石卷',
       theme: '直觉与隐秘',
       prompt: '一本由凝固光子构筑的古籍悬停空中，无数透明文字在虚空中游弋流转。',
-      type: 'monolith',
+      type: 'priestess',
       visualHint: '一页页翻动的时空书页，记录着未曾被发声的宇宙秘密。',
       giftReactionOffered: '你把红色礼物推向石卷。赤红的光丝渗入透明文字，整本书卷泛起温润的霞光，折叠出一条通向深空的引力隧道。',
       giftReactionKept: '你握紧红色礼物没有交付。石卷缓缓合拢，在虚空中为你投下一道宁静的无字光斑，任由谜团安眠。'
@@ -55,7 +55,7 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
       name: '自旋的高维超正方体',
       theme: '秩序与边界',
       prompt: '一座绝对对称的四维几何超立方体正在虚空中以精准的数学节奏无声自旋。',
-      type: 'monolith',
+      type: 'emperor',
       visualHint: '线条森严的几何骨架，折射出整个星系不变的引力常数。',
       giftReactionOffered: '你将绯红礼物掷向几何中心。坚硬森严的晶体边缘骤然柔化，化作如水波般荡漾的光带，接纳了未知的温度。',
       giftReactionKept: '你保留了红色礼物。超立方体继续精确运转，其凛然的阴影如一座守护的堡垒，护送你安然穿过引力紊流。'

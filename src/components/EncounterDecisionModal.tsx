@@ -79,13 +79,13 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
           <div className="flex items-center justify-center gap-2 text-[10px] sm:text-[11px] tracking-[0.2em] text-white/40 font-garamond uppercase mb-1">
             <span>STAGE {stage} · ENCOUNTER</span>
             <span className="text-white/20">·</span>
-            <span>{card.encounter.theme}</span>
+            <span>DESTINY</span>
           </div>
           <h2 className="text-lg sm:text-xl md:text-2xl font-artistic text-white tracking-[0.08em] text-glow-sm">
-            {card.encounter.name}
+            {stage === 1 ? 'Encounter' : `Encounter ${stage}`}
           </h2>
           <p className="text-xs sm:text-sm font-artistic text-white/70 mt-2 max-w-xl mx-auto leading-relaxed">
-            {card.encounter.prompt}
+            {stage === 1 ? 'A choice appears before the traveler.' : 'The journey responds to the choice you made.'}
           </p>
         </div>
 
