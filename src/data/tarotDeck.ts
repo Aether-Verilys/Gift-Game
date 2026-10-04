@@ -72,13 +72,13 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'beacon',
     encounter: {
       id: 'enc_beacon_spire',
-      name: '古老的星系广播塔',
+      name: '星球上的巨像教皇',
       theme: '誓约与传统',
-      prompt: '一座断裂的高耸信标尖塔静默立于山脊，断续发出低频的古老电波。',
-      type: 'beacon',
-      visualHint: '向深空不知疲倦倾泻信号的金属骨架，诉说着先驱者的驻足。',
-      giftReactionOffered: '你把红礼嵌入信标的能量槽。断续的脉冲刹那间化作响彻星区的悠远长钟，将你的呼吸谱入永恒电波。',
-      giftReactionKept: '你收拢掌心，没有打扰它的休眠。信标投下淡淡的阴影，你向它躬身致意，选择用自己的步履去写新的路标。'
+      prompt: '巨大的教皇立于星球地表，三重冠冕没入星光，长袍垂落如山壁。旅者与白马停在权杖投下的阴影里。',
+      type: 'hierophant',
+      visualHint: '冠冕、祝祷的手掌与植入大地的权杖，构成一座沉默的人形圣殿。',
+      giftReactionOffered: '旅者将红礼献于巨像脚下。绯红沿长袍的纹路向上流淌，照亮教皇的冠冕与祝祷的手掌。',
+      giftReactionKept: '旅者保留红礼，仰望沉默的教皇。权杖仍立于大地，旅者在古老秩序面前守住自己的判断。'
     }
   },
   {

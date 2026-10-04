@@ -21,6 +21,7 @@ export interface EncounterData {
   type:
     | 'seedling'
     | 'beacon'
+    | 'hierophant'
     | 'monolith'
     | 'prism'
     | 'lantern'

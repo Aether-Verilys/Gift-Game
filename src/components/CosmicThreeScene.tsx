@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { WalkPace, CameraView, EncounterData, GamePhase, TarotCardDef } from '../types';
 import { audioService } from '../services/audioService';
 import { createTarotFrontTexture, createTarotBackTexture } from '../utils/tarotCanvasTexture';
+import { createHierophant } from '../utils/createHierophant';
 
 interface CosmicThreeSceneProps {
   pace: WalkPace;
@@ -979,7 +980,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     // and reacts dynamically when the red gift is offered or kept.
     // -------------------------------------------------------------
     const encounterRootGroup = new THREE.Group();
-    encounterRootGroup.position.set(0, 1.4, -25);
+    encounterRootGroup.position.set(0, 0, -32);
     encounterRootGroup.visible = false;
     scene.add(encounterRootGroup);
 
@@ -1157,11 +1158,54 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     encounterSubGroups['gateway'] = gatewayGroup;
     encounterRootGroup.add(gatewayGroup);
 
+    const hierophantGroup = createHierophant();
+    encounterSubGroups['hierophant'] = hierophantGroup;
+    encounterRootGroup.add(hierophantGroup);
+
+    // The sun card also needs a materialized entity (previously it was absent).
+    const sunGroup = new THREE.Group();
+    const sunOrb = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2),
+      new THREE.MeshBasicMaterial({ color: 0xffe7ad, wireframe: true }));
+    sunOrb.position.y = 2.1;
+    sunGroup.add(sunOrb);
+    const sunPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.9, 1.3, 10), blackFillMat);
+    sunPedestal.position.y = 0.65;
+    const sunPedestalEdges = new THREE.LineSegments(new THREE.EdgesGeometry(sunPedestal.geometry), horseLineMat);
+    sunPedestalEdges.position.copy(sunPedestal.position);
+    sunGroup.add(sunPedestal, sunPedestalEdges);
+    encounterSubGroups['sun'] = sunGroup;
+    encounterRootGroup.add(sunGroup);
+
+    // Normalize each entity's feet to a common ground plane. At 22 units tall,
+    // a monument towers over the roughly 1.5-unit traveler without engulfing them.
+    for (const [type, model] of Object.entries(encounterSubGroups)) {
+      const bounds = new THREE.Box3().setFromObject(model);
+      const size = bounds.getSize(new THREE.Vector3());
+      const scale = Math.min(22 / size.y, 24 / Math.max(size.x, size.z));
+      model.scale.setScalar(scale);
+      model.position.y = 0.5 - bounds.min.y * scale;
+      const monument = new THREE.Group();
+      monument.add(model);
+      const radius = Math.max(size.x, size.z) * scale * 0.55;
+      // Embed the foundation into the curved ground, rather than float on it.
+      const foundationGeo = new THREE.CylinderGeometry(radius, radius, 1.4 + radius * radius / planetRadius, 48);
+      const foundation = new THREE.Mesh(foundationGeo, blackFillMat);
+      foundation.position.y = 0.5 - foundationGeo.parameters.height / 2;
+      const foundationEdges = new THREE.LineSegments(new THREE.EdgesGeometry(foundationGeo), horseSoftMat);
+      foundationEdges.position.copy(foundation.position);
+      monument.add(foundation, foundationEdges);
+      encounterSubGroups[type] = monument;
+      encounterRootGroup.add(monument);
+    }
+    const surfaceNormal = new THREE.Vector3();
+    const surfaceUp = new THREE.Vector3(0, 1, 0);
+
     // -------------------------------------------------------------
     // 10A. Encounter Sweeping Light Effect (扫光)
     // Triggers when the red gift is dropped onto the Tarot object.
     // -------------------------------------------------------------
     const sweepLightGroup = new THREE.Group();
+    sweepLightGroup.scale.setScalar(5);
     encounterRootGroup.add(sweepLightGroup);
 
     const sweepRingGeo = new THREE.RingGeometry(0.2, 3.4, 36);
@@ -1234,8 +1278,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       burstActive = true;
       burstTimer = 0;
       burstSparkMat.opacity = 1.0;
-      const burstOrigin = encounterRootGroup.position.clone();
-      burstOrigin.y += 1.2;
+      const burstOrigin = encounterRootGroup.localToWorld(new THREE.Vector3(0, 1.2, 1));
       for (let b = 0; b < burstSparkCount; b++) {
         burstSparkPos[b * 3] = burstOrigin.x;
         burstSparkPos[b * 3 + 1] = burstOrigin.y;
@@ -1540,8 +1583,12 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           encounterRootGroup.visible &&
           gamePhaseRef.current === 'encounter_decision'
         ) {
-          const distToEncounter = redObjectGroup.position.distanceTo(encounterRootGroup.position);
-          if (distToEncounter < 5.2) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+          raycaster.setFromCamera(pointer, camera);
+          const monument = encounterSubGroups[encounterTypeRef.current || ''];
+          // Use the visible silhouette, not distance to the old tiny pivot.
+          if (monument && raycaster.intersectObject(monument, true).length > 0) {
             triggerGiftOffering();
           }
         }
@@ -1726,11 +1773,12 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           encounterSubGroups[k].visible = k === encounterTypeRef.current;
         });
 
-        // Approach interpolation: from -24.0 (horizon) to -4.2 (right before duo)
-        const targetZ = THREE.MathUtils.lerp(-24.0, -4.2, approachProgressRef.current);
-        encounterRootGroup.position.z = THREE.MathUtils.lerp(encounterRootGroup.position.z, targetZ, 0.08);
-        encounterRootGroup.position.y = 1.2 + Math.sin(elapsed * 2.2) * 0.12;
-        encounterRootGroup.rotation.y += 0.008;
+        // Follow the spherical surface during approach, then stand still.
+        const groundZ = THREE.MathUtils.lerp(-32, -16, approachProgressRef.current);
+        const groundY = Math.sqrt(planetRadius * planetRadius - groundZ * groundZ);
+        encounterRootGroup.position.set(0, groundY - planetRadius, groundZ);
+        surfaceNormal.set(0, groundY, groundZ).normalize();
+        encounterRootGroup.quaternion.setFromUnitVectors(surfaceUp, surfaceNormal);
 
         // Reactive Red Object & Sweep Light Animation
         if (giftOfferedRef.current === true && !isDraggingRed) {
@@ -1761,11 +1809,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           redCoreMat.emissiveIntensity = 1.6 + Math.sin(elapsed * 2.5) * 0.5;
         }
 
-        if (encounterRootGroup.position.z > -28) {
-          encounterRootGroup.position.z -= dt * 8.0;
-        } else {
-          encounterRootGroup.visible = false;
-        }
+        encounterRootGroup.visible = false;
       }
 
       // Re-enable Red Gift for next stage or reset (tucked inside backpack)
@@ -1779,7 +1823,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       // Update Sweep Light (扫光) on Tarot Object
       if (sweepActive) {
         sweepProgress += dt / sweepDuration;
-        const curY = THREE.MathUtils.lerp(-1.2, 4.4, sweepProgress);
+        const curY = THREE.MathUtils.lerp(0, 24, sweepProgress);
         sweepLightGroup.position.y = curY;
 
         const ringScale = 0.8 + Math.sin(sweepProgress * Math.PI) * 1.8;
@@ -1790,7 +1834,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         sweepRingMat.opacity = alpha * 0.95;
         sweepCylMat.opacity = alpha * 0.85;
         sweepPointLight.intensity = alpha * 24.0;
-        sweepPointLight.position.y = curY;
+        sweepPointLight.position.y = 0;
 
         if (sweepProgress >= 1.0) {
           sweepActive = false;
@@ -1869,12 +1913,12 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         lookTarget.set(0, 8.4, 0);
       } else if (gamePhaseRef.current === 'approaching') {
         // Zoomed-in tracking camera (拉进镜头) following duo strides toward entity
-        targetCam.set(4.0 + mouse.x * 1.0, 3.2 + mouse.y * 0.8, 9.5);
-        lookTarget.set(-0.5, 2.6, -4.0);
+        targetCam.set(11 + mouse.x, 4.5 + mouse.y * 0.4, 24 / Math.min(1, camera.aspect));
+        lookTarget.set(0, 6.8, -15);
       } else if (gamePhaseRef.current === 'encounter_decision') {
         // Intimate framing for scene interaction: duo, red gift, and entity
-        targetCam.set(2.4 + mouse.x * 0.6, 2.2 + mouse.y * 0.5, 5.8);
-        lookTarget.set(0.2, 1.6, -3.2);
+        targetCam.set(10 + mouse.x * 0.6, 3.2 + mouse.y * 0.3, 20 / Math.min(1, camera.aspect));
+        lookTarget.set(0, 7.5, -13);
       } else if (viewRef.current === 'cinematic') {
         // Ultra-distant deep-space panoramic vantage
         targetCam.set(18.0 + mouse.x * 2.5, 14.5 + mouse.y * 1.8, 45.0);
