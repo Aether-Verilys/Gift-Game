@@ -45,7 +45,7 @@ export interface TarotCardDef {
   nameZh: string;               // e.g. "星辰"
   keywordUpright: string;       // e.g. "GUIDANCE · 微光注照"
   keywordReversed: string;      // e.g. "INNER LIGHT · 潜渊自愈"
-  archetype: 'light' | 'void' | 'fate' | 'bond' | 'creation' | 'journey';
+  archetype: 'light' | 'void' | 'fate' | 'empathy' | 'creation' | 'journey';
   symbol: CardSymbol;
   encounter: EncounterData;
 }
@@ -84,10 +84,10 @@ export type CameraView = 'normal' | 'cinematic' | 'close';
 
 // Player stats
 export interface PlayerStats {
-  bond: number;
+  empathy: number;
   insight: number;
-  starlight: number;
-  voidAffinity: number;
+  hesitation: number;
+  boundary: number;
 }
 
 export interface ChronicleEntry {

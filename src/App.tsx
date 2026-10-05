@@ -94,10 +94,10 @@ export default function App() {
 
   // Player Stats derived from stage history
   const [stats, setStats] = useState<PlayerStats>({
-    bond: 2,
+    empathy: 2,
     insight: 2,
-    starlight: 2,
-    voidAffinity: 2,
+    hesitation: 2,
+    boundary: 2,
   });
 
   // Distance accumulation timer
@@ -303,10 +303,10 @@ export default function App() {
 
       // Update player stats
       setStats((prev) => ({
-        bond: prev.bond + (offered ? 2 : 1),
+        empathy: prev.empathy + (offered ? 2 : 1),
         insight: prev.insight + (offered ? 1 : 2),
-        starlight: prev.starlight + (offered ? 3 : 1),
-        voidAffinity: prev.voidAffinity + (offered ? 0 : 2),
+        hesitation: prev.hesitation + (offered ? 3 : 1),
+        boundary: prev.boundary + (offered ? 0 : 2),
       }));
 
       // Record stage history
@@ -482,10 +482,10 @@ export default function App() {
     setDistance(0);
     setChronicle([]);
     setStats({
-      bond: 2,
+      empathy: 2,
       insight: 2,
-      starlight: 2,
-      voidAffinity: 2,
+      hesitation: 2,
+      boundary: 2,
     });
   }, []);
 

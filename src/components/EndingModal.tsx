@@ -60,7 +60,7 @@ export const EndingModal: React.FC<EndingModalProps> = ({
         <div className="flex items-center justify-center gap-6 py-3 text-xs font-garamond text-white/40 mb-8 uppercase tracking-[0.08em]">
           <span>Total Distance {distance.toFixed(1)} LY</span>
           <span className="text-white/20">·</span>
-          <span>Bond {stats.bond}</span>
+          <span>Empathy {stats.empathy}</span>
           <span className="text-white/20">·</span>
           <span>Insight {stats.insight}</span>
         </div>

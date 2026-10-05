@@ -88,7 +88,7 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     nameZh: '恋人',
     keywordUpright: 'BOND · 灵魂同频',
     keywordReversed: 'AUTONOMY · 守望独岛',
-    archetype: 'bond',
+    archetype: 'empathy',
     symbol: 'lovers',
     encounter: {
       id: 'enc_twin_core',
@@ -108,7 +108,7 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     nameZh: '战车',
     keywordUpright: 'MOMENTUM · 决意破障',
     keywordReversed: 'PAUSE · 驻马听涛',
-    archetype: 'bond',
+    archetype: 'empathy',
     symbol: 'chariot',
     encounter: {
       id: 'enc_gravity_bridge',
@@ -191,7 +191,7 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     archetype: 'light',
     symbol: 'star',
     encounter: {
-      id: 'enc_starlight_spring',
+      id: 'enc_hesitation_spring',
       name: '失重液态星光泉',
       theme: '希望与自愈',
       prompt: '一汪无重力悬浮的银色流体清泉，正轻柔地泛起涟漪，洗涤着周围的宇宙尘埃。',

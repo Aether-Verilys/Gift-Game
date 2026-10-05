@@ -930,7 +930,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     redObjectGroup.add(redSparksField);
 
     // 4. Dynamic PointLight inside the Red Object
-    // Casts real-time glowing crimson starlight on the duo and planet ground
+    // Casts real-time glowing crimson hesitation on the duo and planet ground
     const redPointLight = new THREE.PointLight(0xff1d3f, 5.0, 32);
     redObjectGroup.add(redPointLight);
 

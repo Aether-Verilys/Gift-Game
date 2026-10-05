@@ -72,24 +72,17 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Middle Stats (Affinity indicators) */}
       <div className="hidden lg:flex items-center gap-6 text-xs font-artistic text-white/35 pointer-events-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
-        <span title="漫步者与白马的心灵羁绊" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '羁绊' : 'Bond'} <span className="font-garamond text-white/50">{stats.bond}</span>
+        <span title="对他者感受的敏感度" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
+          {language === 'zh' ? '共情' : 'Empathy'} <span className="font-garamond text-white/50">{stats.empathy}</span>
         </span>
         <span title="对宇宙秩序与虚空的哲思洞察" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
           {language === 'zh' ? '洞察' : 'Insight'} <span className="font-garamond text-white/50">{stats.insight}</span>
         </span>
-        <span title="抵抗虚无的恒星灵曦" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '星光' : 'Starlight'} <span className="font-garamond text-white/50">{stats.starlight}</span>
+        <span title="面对选择时的犹豫程度" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
+          {language === 'zh' ? '犹豫' : 'Hesitation'} <span className="font-garamond text-white/50">{stats.hesitation}</span>
         </span>
-        <span title="静默与熵增的安宁共处" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '虚空' : 'Void'} <span className="font-garamond text-white/50">{stats.voidAffinity}</span>
-        </span>
-        <span
-          title="场景中的绯红礼物：拖拽可直接与造物共鸣"
-          className="text-[#ff4d6d]/70 hover:text-[#ff4d6d] transition-colors tracking-[0.06em] uppercase text-[10px] hidden xl:flex items-center gap-1.5 cursor-help"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#ff3355] animate-pulse" />
-          <span>{language === 'zh' ? '绯红礼物' : 'Scarlet Gift'}</span>
+        <span title="保护自身界限的倾向" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
+          {language === 'zh' ? '边界' : 'Boundaries'} <span className="font-garamond text-white/50">{stats.boundary}</span>
         </span>
       </div>
 

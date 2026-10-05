@@ -117,9 +117,9 @@ export const TarotSymbol: React.FC<TarotSymbolProps> = ({ symbol, className = 'w
     case 'lovers':
       return (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" className={className}>
-          {/* Intertwined infinity/lemniscate starlight ribbons */}
+          {/* Intertwined infinity/lemniscate hesitation ribbons */}
           <path d="M28 50 C28 35 44 35 50 50 C56 65 72 65 72 50 C72 35 56 35 50 50 C44 65 28 65 28 50 Z" strokeWidth="1.2" />
-          {/* Radiant central starlight seed */}
+          {/* Radiant central hesitation seed */}
           <circle cx="50" cy="50" r="4" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1" />
           <line x1="50" y1="26" x2="50" y2="74" strokeWidth="0.6" strokeDasharray="2 2" opacity="0.4" />
           {/* Twin star points */}

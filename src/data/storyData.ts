@@ -76,7 +76,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Follow the Star Beacon',
         subtext: 'Trust the stride into the warm glow',
         nextNodeId: 'beacon_encounter',
-        effects: { bond: 2, starlight: 2 },
+        effects: { empathy: 2, hesitation: 2 },
         narration: '星光垂落，白马与你的呼吸在冰冷虚空中同频起伏。',
         sceneryShift: 'normal'
       },
@@ -93,7 +93,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Contemplate Void Tides',
         subtext: 'In deep silence, listen to the stars',
         nextNodeId: 'deep_abyss',
-        effects: { insight: 2, voidAffinity: 2 },
+        effects: { insight: 2, boundary: 2 },
         narration: '远方星光在视界边缘弯折成弦，于静默中沉淀出至深的宁静。',
         sceneryShift: 'aurora'
       }
@@ -120,7 +120,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Kindle the Stellar Core',
         subtext: 'A burst of flame to pierce the night',
         nextNodeId: 'crystal_field',
-        effects: { starlight: 3, bond: 1 },
+        effects: { hesitation: 3, empathy: 1 },
         narration: '信标谐振迸发，一道纯净的银光划破深空长夜。',
         sceneryShift: 'meteor_shower'
       },
@@ -137,7 +137,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Trace Ancient Glyphs',
         subtext: 'Bearing witness to what once was',
         nextNodeId: 'crystal_field',
-        effects: { insight: 3, voidAffinity: 1 },
+        effects: { insight: 3, boundary: 1 },
         narration: '指尖轻触风化的几何符文，沉睡的信息在漫游纪中苏醒。',
         sceneryShift: 'normal'
       },
@@ -154,7 +154,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Pass in Reverent Silence',
         subtext: 'Let the sleeping dust rest in peace',
         nextNodeId: 'ring_passage',
-        effects: { voidAffinity: 2, insight: 2 },
+        effects: { boundary: 2, insight: 2 },
         narration: '不惊动沉睡之物，你们在阴影中滑行，敬畏被遗忘的永恒。',
         sceneryShift: 'rings'
       }
@@ -175,13 +175,13 @@ export const STORY_NODES: Record<string, StoryNode> = {
           nameEn: 'THE CHARIOT',
           nameZh: '战车',
           keyword: 'LEAP · 驭光越境',
-          archetype: 'bond',
+          archetype: 'empathy',
           symbol: 'chariot'
         },
         text: 'Clasp Reins Across the Chasm',
         subtext: 'Bound by trust, the void cannot claim you',
         nextNodeId: 'crystal_field',
-        effects: { bond: 3, starlight: 1 },
+        effects: { empathy: 3, hesitation: 1 },
         narration: '白马踏出失重的涟漪，信任如看不见的丝线跨越黑暗。',
         sceneryShift: 'aurora'
       },
@@ -198,7 +198,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Cast Light into Horizon',
         subtext: 'Witness the curvature of spacetime',
         nextNodeId: 'ring_passage',
-        effects: { insight: 3, voidAffinity: 2 },
+        effects: { insight: 3, boundary: 2 },
         narration: '光子在奇点边界拉长为纤细光弦，记录下时空的极致曲率。',
         sceneryShift: 'black_hole'
       }
@@ -219,13 +219,13 @@ export const STORY_NODES: Record<string, StoryNode> = {
           nameEn: 'THE LOVERS',
           nameZh: '恋人',
           keyword: 'MEMORY · 故土麦浪',
-          archetype: 'bond',
+          archetype: 'empathy',
           symbol: 'lovers'
         },
         text: 'Touch the Memory Facet',
         subtext: 'Cherishing the warmth of earthly wheat',
         nextNodeId: 'monolith_dialogue',
-        effects: { bond: 3, starlight: 2 },
+        effects: { empathy: 3, hesitation: 2 },
         narration: '晶面回荡着遥远蔚蓝星球的风声，白马轻蹭你的掌心。',
         sceneryShift: 'normal'
       },
@@ -242,7 +242,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Shatter Reflections Forward',
         subtext: 'The road ahead belongs to open stars',
         nextNodeId: 'monolith_dialogue',
-        effects: { voidAffinity: 3, insight: 2 },
+        effects: { boundary: 3, insight: 2 },
         narration: '镜晶在马蹄下碎裂如霜，前路唯有无限星河。',
         sceneryShift: 'monolith'
       }
@@ -267,9 +267,9 @@ export const STORY_NODES: Record<string, StoryNode> = {
           symbol: 'rings'
         },
         text: 'Trot Along Silver Ribbons',
-        subtext: 'Chasing starlight across icy rings',
+        subtext: 'Chasing hesitation across icy rings',
         nextNodeId: 'monolith_dialogue',
-        effects: { starlight: 3, bond: 1 },
+        effects: { hesitation: 3, empathy: 1 },
         narration: '马蹄在结晶星环上叩出清脆风铃，溅起阵阵银白彗尾。',
         sceneryShift: 'meteor_shower'
       },
@@ -286,7 +286,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Step into Obsidian Shadow',
         subtext: 'Finding quiet solace in the deep',
         nextNodeId: 'monolith_dialogue',
-        effects: { voidAffinity: 3, insight: 2 },
+        effects: { boundary: 3, insight: 2 },
         narration: '步入绝对的黑曜石阴影，身旁温热的呼吸是宇宙唯一的标尺。',
         sceneryShift: 'rings'
       }
@@ -307,13 +307,13 @@ export const STORY_NODES: Record<string, StoryNode> = {
           nameEn: 'TEMPERANCE',
           nameZh: '节制',
           keyword: 'AFFINITY · 爱与同行',
-          archetype: 'bond',
+          archetype: 'empathy',
           symbol: 'lovers'
         },
         text: '“Love Still Measures Light-Years”',
         subtext: 'The universe is measured by companionship',
         nextNodeId: 'crossroads',
-        effects: { bond: 3, starlight: 2 },
+        effects: { empathy: 3, hesitation: 2 },
         narration: '丰碑泛起暖银色的潮汐，在二人身前化为前行的通路。',
         sceneryShift: 'aurora'
       },
@@ -330,7 +330,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: '“The Cosmos Needs No Purpose”',
         subtext: 'Harmonizing with immutable natural law',
         nextNodeId: 'crossroads',
-        effects: { insight: 4, voidAffinity: 2 },
+        effects: { insight: 4, boundary: 2 },
         narration: '超正方体几何静默翻转，向你展现宇宙最朴素的自洽。',
         sceneryShift: 'monolith'
       },
@@ -347,7 +347,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Pour Water onto Stardust',
         subtext: 'Silence is the ultimate cosmic answer',
         nextNodeId: 'crossroads',
-        effects: { bond: 2, voidAffinity: 3 },
+        effects: { empathy: 2, boundary: 3 },
         narration: '一滴甘露在星尘上凝为冰霜之花，沉默是对永恒最好的敬意。',
         sceneryShift: 'normal'
       }
@@ -374,7 +374,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Ascend into Celestial Lyra',
         subtext: 'Eternal guardians woven into the night sky',
         nextNodeId: 'ending_steed_ascension',
-        effects: { bond: 4, starlight: 4 },
+        effects: { empathy: 4, hesitation: 4 },
         narration: '松开缰绳，白马鬃毛化作亿万光年永不熄灭的北极星座。',
         sceneryShift: 'meteor_shower'
       },
@@ -391,7 +391,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Return to Pale Blue Dot',
         subtext: 'Returning home across the folds of light',
         nextNodeId: 'ending_pale_blue',
-        effects: { bond: 4, starlight: 3 },
+        effects: { empathy: 4, hesitation: 3 },
         narration: '纵身跃入曲率折叠，那颗如同泪滴般湛蓝的故土已在眼前。',
         sceneryShift: 'aurora'
       },
@@ -408,7 +408,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Pace the Celestial Equator',
         subtext: 'The journey itself is the true destination',
         nextNodeId: 'ending_eternal_watchers',
-        effects: { voidAffinity: 4, insight: 4 },
+        effects: { boundary: 4, insight: 4 },
         narration: '蹄声永不停歇，在星海的边界上，以脚步丈量无始无终。',
         sceneryShift: 'normal'
       },
@@ -425,7 +425,7 @@ export const STORY_NODES: Record<string, StoryNode> = {
         text: 'Ignite Nova Singularity',
         subtext: 'Igniting a newborn dawn of creation',
         nextNodeId: 'ending_nova_genesis',
-        effects: { insight: 4, starlight: 5 },
+        effects: { insight: 4, hesitation: 5 },
         narration: '将灵曦火种投入奇点，亿万道炽烈的晨曦将死寂星区重新点燃。',
         sceneryShift: 'aurora'
       }

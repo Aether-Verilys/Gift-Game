@@ -48,37 +48,37 @@ export const ChronicleModal: React.FC<ChronicleModalProps> = ({
           <div className="text-center py-2">
             <div className="flex items-center justify-center gap-1.5 text-xs text-white/40 mb-1 uppercase tracking-wider">
               <Heart className="w-3 h-3 text-white/50" />
-              <span>Bond</span>
+              <span>共情</span>
             </div>
-            <div className="text-xl font-garamond font-medium text-white">{stats.bond}</div>
-            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">Soul Affinity</div>
+            <div className="text-xl font-garamond font-medium text-white">{stats.empathy}</div>
+            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">对他者感受的敏感度</div>
           </div>
 
           <div className="text-center py-2">
             <div className="flex items-center justify-center gap-1.5 text-xs text-white/40 mb-1 uppercase tracking-wider">
               <Compass className="w-3 h-3 text-white/50" />
-              <span>Insight</span>
+              <span>洞察</span>
             </div>
             <div className="text-xl font-garamond font-medium text-white">{stats.insight}</div>
-            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">Cosmic Order</div>
+            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">理解处境的清晰度</div>
           </div>
 
           <div className="text-center py-2">
             <div className="flex items-center justify-center gap-1.5 text-xs text-white/40 mb-1 uppercase tracking-wider">
               <Sparkles className="w-3 h-3 text-white/50" />
-              <span>Starlight</span>
+              <span>犹豫</span>
             </div>
-            <div className="text-xl font-garamond font-medium text-white">{stats.starlight}</div>
-            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">Living Hope</div>
+            <div className="text-xl font-garamond font-medium text-white">{stats.hesitation}</div>
+            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">面对选择的迟疑程度</div>
           </div>
 
           <div className="text-center py-2">
             <div className="flex items-center justify-center gap-1.5 text-xs text-white/40 mb-1 uppercase tracking-wider">
               <Moon className="w-3 h-3 text-white/50" />
-              <span>Void</span>
+              <span>边界</span>
             </div>
-            <div className="text-xl font-garamond font-medium text-white">{stats.voidAffinity}</div>
-            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">Silent Entropy</div>
+            <div className="text-xl font-garamond font-medium text-white">{stats.boundary}</div>
+            <div className="text-[10px] text-white/30 mt-0.5 tracking-wider uppercase">保护自身的倾向</div>
           </div>
         </div>
 
@@ -98,7 +98,7 @@ export const ChronicleModal: React.FC<ChronicleModalProps> = ({
                 key={idx}
                 className="relative pl-5 pb-6 border-l border-white/15 last:border-l-0 last:pb-0"
               >
-                {/* Subtle starlight node dot on timeline */}
+                {/* Subtle hesitation node dot on timeline */}
                 <div className="absolute -left-[3px] top-1.5 w-1.5 h-1.5 rounded-full bg-white/70 shadow-[0_0_6px_rgba(255,255,255,0.6)]" />
 
                 <div className="flex items-center justify-between text-[11px] text-white/35 mb-1.5 font-garamond tracking-[0.06em] uppercase">
