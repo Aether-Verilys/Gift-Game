@@ -21,7 +21,7 @@ import {
   PlayerStats,
 } from './types';
 import { audioService } from './services/audioService';
-import { Language, copy, stageCopy } from './i18n';
+import { Language, copy, stageCopy, tarotEncounterName, tarotEncounterPrompt, tarotGiftReaction } from './i18n';
 
 const TAROT_COLLECTION_KEY = 'gift-game.unlocked-tarot.v1';
 
@@ -63,7 +63,6 @@ export default function App() {
   const [view, setView] = useState<CameraView>('cinematic');
   const [viewToast, setViewToast] = useState<string | null>(null);
   const viewToastTimerRef = useRef<number | null>(null);
-  const [approachProgress, setApproachProgress] = useState<number>(0);
   const [giftOffered, setGiftOffered] = useState<boolean | null>(null);
   const giftDecisionLockRef = useRef(false);
 
@@ -128,34 +127,10 @@ export default function App() {
     };
   }, []);
 
-  // Approach progression timer when walking towards encounter
-  useEffect(() => {
-    if (gamePhase !== 'approaching') return;
-
-    setPace('walk');
-    const startTime = performance.now();
-    const duration = 3800; // 3.8 seconds walk to encounter
-
-    const interval = setInterval(() => {
-      const elapsed = performance.now() - startTime;
-      const progress = Math.min(1.0, elapsed / duration);
-      setApproachProgress(progress);
-
-      if (progress >= 1.0) {
-        clearInterval(interval);
-        setPace('pause');
-        audioService.playStarlightChime();
-        setGamePhase('encounter_decision');
-      }
-    }, 50);
-
-    return () => clearInterval(interval);
-  }, [gamePhase]);
-
-  // Manual skip to arrive immediately
+  // Arrival at the colossus: reported by the scene once the duo has walked
+  // its leg of the lap, or triggered early by the skip button / Space.
   const handleArriveImmediately = useCallback(() => {
     if (gamePhase === 'approaching') {
-      setApproachProgress(1.0);
       setPace('pause');
       audioService.playStarlightChime();
       setGamePhase('encounter_decision');
@@ -168,15 +143,6 @@ export default function App() {
       if (isCollectionOpen) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
-      }
-
-      // Keys 1, 2, 3 for card selection (三选一)
-      if (gamePhase === 'card_selection' && stageCards.length >= 3) {
-        const num = parseInt(e.key, 10);
-        if (num >= 1 && num <= 3) {
-          handleSelectCard(stageCards[num - 1]);
-          return;
-        }
       }
 
       // Spacebar for arriving immediately if approaching
@@ -271,7 +237,6 @@ export default function App() {
   const handleSelectCard = useCallback((card: TarotCardDef) => {
     setUnlockedCardIds((prev) => prev.includes(card.id) ? prev : [...prev, card.id]);
     setSelectedCard(card);
-    setApproachProgress(0);
     setGiftOffered(null);
     giftDecisionLockRef.current = false;
     setGamePhase('approaching');
@@ -287,7 +252,12 @@ export default function App() {
       giftDecisionLockRef.current = true;
       setGiftOffered(offered);
 
-      const orientation = offered ? 'reversed' : 'upright';
+      // Giving the gift flips the card from the orientation it was drawn in;
+      // keeping it preserves the drawn orientation.
+      const drawnOrientation = selectedCard.drawnOrientation ?? 'upright';
+      const orientation = offered
+        ? (drawnOrientation === 'upright' ? 'reversed' : 'upright')
+        : drawnOrientation;
 
       if (offered) {
         audioService.playCrimsonResonance();
@@ -321,8 +291,8 @@ export default function App() {
         card: selectedCard,
         orientation,
         offeredGift: offered,
-        encounterName: selectedCard.encounter.name,
-        encounterDesc: selectedCard.encounter.prompt,
+        encounterName: tarotEncounterName(language, selectedCard.id, selectedCard.encounter.name),
+        encounterDesc: tarotEncounterPrompt(language, selectedCard.id, selectedCard.encounter.prompt),
       };
 
       setStageHistory((prev) => {
@@ -345,14 +315,17 @@ export default function App() {
         card: selectedCard,
         orientation,
         offeredGift: offered,
-        encounterName: selectedCard.encounter.name,
-        reflection: offered
-          ? selectedCard.encounter.giftReactionOffered
-          : selectedCard.encounter.giftReactionKept,
+        encounterName: tarotEncounterName(language, selectedCard.id, selectedCard.encounter.name),
+        reflection: tarotGiftReaction(
+          language,
+          selectedCard.id,
+          offered,
+          offered ? selectedCard.encounter.giftReactionOffered : selectedCard.encounter.giftReactionKept,
+        ),
       };
       setChronicle((prev) => [...prev, entry]);
     },
-    [selectedCard, currentStage, giftOffered]
+    [selectedCard, currentStage, giftOffered, language]
   );
 
   // 3. Advance to next stage or final LLM reading
@@ -365,12 +338,13 @@ export default function App() {
       setSelectedCard(null);
       setGiftOffered(null);
       giftDecisionLockRef.current = false;
-      setApproachProgress(0);
-      setGamePhase('card_selection');
+        setGamePhase('card_selection');
       setPace('walk');
     } else {
-      // Completed all 3 stages (起因、经过、结果)! Trigger final LLM reading
-      setGamePhase('final_reading');
+      // Completed all 3 stages (起因、经过、结果)! The duo walks on to close
+      // the lap; the reading loads meanwhile and opens back at the origin.
+      setGamePhase('homecoming');
+      setPace('walk');
       setIsLlmLoading(true);
 
       // React state updates are batched: the final gift decision may not have
@@ -381,16 +355,19 @@ export default function App() {
             stage: currentStage,
             stageName: '结果' as const,
             card: selectedCard,
-            orientation: giftOffered ? ('reversed' as const) : ('upright' as const),
+            orientation: giftOffered
+              ? ((selectedCard.drawnOrientation ?? 'upright') === 'upright' ? 'reversed' : 'upright')
+              : (selectedCard.drawnOrientation ?? 'upright'),
             offeredGift: giftOffered,
-            encounterName: selectedCard.encounter.name,
-            encounterDesc: selectedCard.encounter.prompt,
+            encounterName: tarotEncounterName(language, selectedCard.id, selectedCard.encounter.name),
+            encounterDesc: tarotEncounterPrompt(language, selectedCard.id, selectedCard.encounter.prompt),
           }
         : null;
       const historyByStage = new Map(stageHistory.map((record) => [record.stage, record]));
       if (latestRecord) historyByStage.set(currentStage, latestRecord);
       const fullHistory = Array.from(historyByStage.values()).sort((a, b) => a.stage - b.stage);
       setFinalHistory(fullHistory);
+      const minimumReadingDelay = new Promise((resolve) => window.setTimeout(resolve, 2000));
       fetch('/api/interpret', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -401,20 +378,28 @@ export default function App() {
           if (!res.ok) throw new Error(data.error || '解读接口调用失败');
           return data as LLMInterpretation;
         })
-        .then((data: LLMInterpretation) => {
+        .then(async (data: LLMInterpretation) => {
+          await minimumReadingDelay;
           setInterpretation(data);
           setIsFallbackReading(Boolean(data.fallback));
           setIsLlmLoading(false);
           audioService.playChoiceConfirm();
         })
-        .catch((err) => {
+        .catch(async (err) => {
+          await minimumReadingDelay;
           console.error('Failed to get interpretation:', err);
           setInterpretation(createClientFallback(fullHistory));
           setIsFallbackReading(true);
           setIsLlmLoading(false);
         });
     }
-  }, [currentStage, stageHistory, selectedCard, giftOffered, createClientFallback]);
+  }, [currentStage, stageHistory, selectedCard, giftOffered, createClientFallback, language]);
+
+  // Closing the planet lap ends the journey and reveals the reading.
+  const handleJourneyComplete = useCallback(() => {
+    setGamePhase((phase) => (phase === 'homecoming' ? 'final_reading' : phase));
+    setPace('pause');
+  }, []);
 
   // Countdown timer for offering gift (时间过了就默认不给)
   const [decisionTimeLeft, setDecisionTimeLeft] = useState<number>(10);
@@ -442,9 +427,7 @@ export default function App() {
 
   // Auto-advance timer: once gift decision is made in encounter_decision
   useEffect(() => {
-    // The final stage must remain still long enough for the player to read the
-    // result. Only the first two stages advance automatically.
-    if (gamePhase !== 'encounter_decision' || giftOffered === null || currentStage >= 3) return;
+    if (gamePhase !== 'encounter_decision' || giftOffered === null) return;
 
     setAutoAdvanceTimeLeft(3.5);
     const interval = setInterval(() => {
@@ -474,7 +457,6 @@ export default function App() {
     setInterpretation(null);
     setIsFallbackReading(false);
     setIsLlmLoading(false);
-    setApproachProgress(0);
     setGiftOffered(null);
     setDecisionTimeLeft(10);
     setAutoAdvanceTimeLeft(3.5);
@@ -506,17 +488,20 @@ export default function App() {
         view={view}
         gamePhase={gamePhase}
         stageCards={stageCards}
+        stage={currentStage}
         onSelectCard={handleSelectCard}
         encounterActive={gamePhase === 'approaching' || gamePhase === 'encounter_decision'}
         encounterType={selectedCard?.encounter.type || null}
-        approachProgress={approachProgress}
+        onApproachArrived={handleArriveImmediately}
         giftOffered={giftOffered}
         onGiftDroppedOnEntity={() => handleGiftDecision(true)}
+        language={language}
+        onJourneyComplete={handleJourneyComplete}
       />
 
       {/* 2. Top Navigation & Status Bar (Simplified, without pace buttons) */}
       <TopBar
-        currentChapter={stageChapterTitles[currentStage] || '星海漫游'}
+        currentChapter={stageChapterTitles[currentStage] || copy[language].roaming}
         distance={distance}
         view={view}
         onChangeView={handleChangeView}
@@ -537,7 +522,13 @@ export default function App() {
       {/* Stage Progress (起因 · 经过 · 结果) */}
       {!zenMode && (
         <div className="absolute top-16 left-6 z-30 pointer-events-auto">
-          <StageProgressHeader currentStage={currentStage} history={stageHistory} language={language} />
+          <StageProgressHeader
+            currentStage={currentStage}
+            history={stageHistory}
+            selectedCard={selectedCard}
+            giftOffered={giftOffered}
+            language={language}
+          />
         </div>
       )}
 
@@ -555,7 +546,7 @@ export default function App() {
               <span className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
               <span>{viewToast}</span>
               <span className="text-white/35 font-garamond text-[9px] tracking-normal lowercase ml-1">
-                (滚轮缩放)
+                {copy[language].wheelZoom}
               </span>
             </div>
           </motion.div>
@@ -619,12 +610,14 @@ export default function App() {
         entries={chronicle}
         stats={stats}
         distance={distance}
+        language={language}
       />
       <TarotCollectionModal
         isOpen={isCollectionOpen}
         onClose={() => setIsCollectionOpen(false)}
         cards={ALL_TAROT_CARDS}
         unlockedCardIds={unlockedCardIds}
+        language={language}
       />
     </main>
   );

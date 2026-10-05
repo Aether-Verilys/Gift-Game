@@ -30,3 +30,36 @@ body {
 .text-glow-md {
   text-shadow: 0 0 20px rgba(255, 255, 255, 0.75), 0 0 40px rgba(255, 255, 255, 0.25);
 }
+
+@keyframes card-slot-inset {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+    box-shadow: 0 0 0 0 rgba(255, 209, 102, 0);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 0 5px rgba(255, 209, 102, 0.5), 0 0 32px 8px rgba(255, 209, 102, 0.35);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 4px 16px rgba(200, 178, 115, 0.18);
+  }
+}
+
+.card-slot-inset::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid rgba(255, 209, 102, 0.85);
+  border-radius: 4px;
+  pointer-events: none;
+  animation: card-slot-glint 1s ease-out forwards;
+}
+
+@keyframes card-slot-glint {
+  0% { opacity: 1; transform: scale(0.78); }
+  100% { opacity: 0; transform: scale(1.3); }
+}

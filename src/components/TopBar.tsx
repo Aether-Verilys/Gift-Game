@@ -34,16 +34,17 @@ export const TopBar: React.FC<TopBarProps> = ({
   language,
   onLanguageChange,
 }) => {
+  const t = copy[language];
   if (zenMode) {
     return (
       <button
         id="exit-zen-btn"
         onClick={onToggleZenMode}
         className="fixed bottom-6 right-6 z-50 p-2.5 text-white/50 hover:text-white transition-all font-artistic text-xs flex items-center gap-2 cursor-pointer drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-        title="Exit Zen Mode (Press H)"
+        title={t.show}
       >
         <Eye className="w-4 h-4" />
-        <span className="tracking-[0.2em]">{copy[language].show}</span>
+        <span className="tracking-[0.2em]">{t.show}</span>
       </button>
     );
   }
@@ -70,25 +71,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       </div>
 
-      {/* Middle Stats (Affinity indicators) */}
-      <div className="hidden lg:flex items-center gap-6 text-xs font-artistic text-white/35 pointer-events-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
-        <span title="对他者感受的敏感度" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '共情' : 'Empathy'} <span className="font-garamond text-white/50">{stats.empathy}</span>
-        </span>
-        <span title="对宇宙秩序与虚空的哲思洞察" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '洞察' : 'Insight'} <span className="font-garamond text-white/50">{stats.insight}</span>
-        </span>
-        <span title="面对选择时的犹豫程度" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '犹豫' : 'Hesitation'} <span className="font-garamond text-white/50">{stats.hesitation}</span>
-        </span>
-        <span title="保护自身界限的倾向" className="hover:text-white/70 transition-colors tracking-[0.06em] uppercase text-[11px]">
-          {language === 'zh' ? '边界' : 'Boundaries'} <span className="font-garamond text-white/50">{stats.boundary}</span>
-        </span>
-      </div>
-
       {/* Right Controls: Minimalist icons */}
       <div className="flex items-center gap-3 md:gap-4 pointer-events-auto">
-        <div className="flex items-center rounded border border-white/15 bg-black/20 p-0.5 text-[10px] font-artistic" aria-label={copy[language].language}>
+        <div className="flex items-center rounded border border-white/15 bg-black/20 p-0.5 text-[10px] font-artistic" aria-label={t.language}>
           <button onClick={() => onLanguageChange('zh')} className={`px-1.5 py-1 cursor-pointer ${language === 'zh' ? 'bg-white/20 text-white' : 'text-white/40'}`}>中</button>
           <button onClick={() => onLanguageChange('en')} className={`px-1.5 py-1 cursor-pointer ${language === 'en' ? 'bg-white/20 text-white' : 'text-white/40'}`}>EN</button>
         </div>
@@ -97,7 +82,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           id="audio-toggle-btn"
           onClick={onToggleMute}
           className="p-1.5 text-white/50 hover:text-white transition-colors cursor-pointer"
-          title={isMuted ? '取消静音' : '静音'}
+          title={isMuted ? t.unmute : t.mute}
         >
           {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
         </button>
@@ -107,7 +92,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           id="chronicle-modal-btn"
           onClick={onOpenChronicle}
           className="p-1.5 text-white/50 hover:text-white transition-colors cursor-pointer"
-          title="查看旅途手记"
+          title={t.chronicle}
         >
           <BookOpen className="w-4 h-4" />
         </button>
@@ -117,7 +102,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           id="zen-toggle-btn"
           onClick={onToggleZenMode}
           className="p-1.5 text-white/50 hover:text-white transition-colors cursor-pointer"
-          title="进入纯享模式 (H)"
+          title={t.zen}
         >
           <EyeOff className="w-4 h-4" />
         </button>
@@ -127,7 +112,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           id="restart-btn"
           onClick={onRestart}
           className="p-1.5 text-white/40 hover:text-white/80 transition-colors cursor-pointer"
-          title="开启新的旅途"
+          title={t.newJourney}
         >
           <RotateCcw className="w-3.5 h-3.5" />
         </button>

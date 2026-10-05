@@ -28,7 +28,7 @@ export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -12 }}
         transition={{ duration: 0.5 }}
-        className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 z-20 pointer-events-auto text-center"
+        className="absolute top-24 sm:top-28 left-1/2 -translate-x-1/2 z-40 pointer-events-auto text-center"
       >
         <div className="py-2.5 px-6 rounded-full bg-black/60 border border-white/20 backdrop-blur-md text-white/90 shadow-[0_8px_32px_rgba(0,0,0,0.85)] flex flex-col sm:flex-row items-center gap-3">
           <div className="flex items-center gap-2">
@@ -40,13 +40,13 @@ export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
 
           <div className="text-xs sm:text-sm font-artistic tracking-[0.06em] text-white flex items-center gap-1.5">
             <span>{copy[language].approaching}</span>
-            <span className="text-white text-glow-sm font-medium">{language === 'zh' ? '即将抵达' : 'Almost there'}</span>
+            <span className="text-white text-glow-sm font-medium">{copy[language].almostThere}</span>
           </div>
 
           <button
             onClick={onArrive}
             className="group relative ml-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-artistic tracking-wider text-white transition-all cursor-pointer flex items-center gap-1.5"
-            title="按下空格或点击立即抵达"
+            title={copy[language].arrive}
           >
             <Sparkles className="w-3 h-3 text-white/70 group-hover:text-white" />
             <span>{copy[language].arrive}</span>

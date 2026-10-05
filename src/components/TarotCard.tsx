@@ -82,16 +82,12 @@ export const TarotCard: React.FC<TarotCardProps> = ({
           </div>
         </div>
 
-        {/* Bottom Section: Tarot Title, Chinese Name & Divination Keyword */}
+        {/* Bottom Section: Tarot Title */}
         <div className="relative z-10 text-center pb-0.5">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <h3 className="font-['Cinzel',serif] font-semibold text-xs sm:text-[13px] md:text-sm tracking-[0.16em] text-white group-hover:text-white transition-colors uppercase">
               {tarot.nameEn}
             </h3>
-            <span className="text-white/30 text-xs font-artistic">·</span>
-            <span className="font-artistic text-xs sm:text-[13px] text-white/80 group-hover:text-white transition-colors">
-              {tarot.nameZh}
-            </span>
           </div>
 
           {/* Divination Keyword (Crisp, not a wall of text!) */}
@@ -99,11 +95,6 @@ export const TarotCard: React.FC<TarotCardProps> = ({
             {tarot.keyword}
           </div>
 
-          {/* Key shortcut indicator */}
-          <div className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-sm bg-white/5 border border-white/10 text-[9px] font-mono tracking-widest text-white/40 group-hover:text-white/80 group-hover:border-white/30 transition-colors">
-            <span>KEY</span>
-            <span className="font-bold text-white/75">{index + 1}</span>
-          </div>
         </div>
       </div>
     </motion.button>

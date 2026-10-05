@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TarotCardDef, CardSymbol } from '../types';
+import { Language, copy, tarotEncounterName, tarotKeyword, tarotName } from '../i18n';
 
 // Helper to draw sacred geometric symbols on 2D canvas
 function drawSymbolOnCanvas(ctx: CanvasRenderingContext2D, symbol: CardSymbol, cx: number, cy: number, r: number) {
@@ -240,7 +241,7 @@ function drawSymbolOnCanvas(ctx: CanvasRenderingContext2D, symbol: CardSymbol, c
 /**
  * Generates an ultra-crisp 512x800 Canvas texture for a 3D Tarot Card in Three.js
  */
-export function createTarotFrontTexture(card: TarotCardDef, index: number, isHovered = false): THREE.CanvasTexture {
+export function createTarotFrontTexture(card: TarotCardDef, index: number, isHovered = false, language: Language = 'zh'): THREE.CanvasTexture {
   const width = 512;
   const height = 800;
   const canvas = document.createElement('canvas');
@@ -300,31 +301,48 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
   ctx.fillText('✦', innerMargin, height - innerMargin);
   ctx.fillText('✦', width - innerMargin, height - innerMargin);
 
-  // 3. Top Header: Roman Numeral & Title
+  // The card itself stays readable in the spread. Reversed cards are marked
+  // by a different top/bottom corner placement instead of rotating the art.
+  const isReversed = card.drawnOrientation === 'reversed';
+  const markerColor = isReversed ? '#ff718b' : '#e5cf8e';
+  ctx.fillStyle = markerColor;
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText(isReversed ? '◆' : '◇', isReversed ? width - 58 : 58, 72);
+  ctx.fillText(isReversed ? '◇' : '◆', isReversed ? 58 : width - 58, height - 72);
+  ctx.font = '9px "Cinzel", sans-serif';
+  ctx.letterSpacing = '1px';
+  ctx.fillText(isReversed ? 'REVERSED' : 'UPRIGHT', width / 2, height - 58);
+  ctx.letterSpacing = '0px';
+
+  // 3. Roman numeral follows the card orientation while remaining readable.
   ctx.textAlign = 'center';
   ctx.fillStyle = isHovered ? '#ffffff' : '#e6e9f0';
   ctx.font = '600 32px "Cinzel", "Times New Roman", serif';
-  ctx.fillText(card.numeral, width / 2, 72);
+  ctx.fillText(card.numeral, width / 2, isReversed ? 730 : 72);
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
   ctx.font = '10px "Cinzel", sans-serif';
   ctx.letterSpacing = '4px';
-  ctx.fillText('TAROT ARCANA', width / 2, 98);
+  ctx.fillText('TAROT ARCANA', width / 2, isReversed ? 690 : 98);
   ctx.letterSpacing = '0px';
 
   // 4. Center Symbol Sigil
   drawSymbolOnCanvas(ctx, card.symbol, width / 2, 280, 85);
 
-  // 5. Card Title in Chinese & English
+  // 5. Card Title
+  const title = tarotName(language, card.id, language === 'zh' ? card.nameZh : card.nameEn);
+  const keyword = tarotKeyword(language, card.id, card.drawnOrientation ?? 'upright', card.keywordUpright);
   ctx.fillStyle = isHovered ? '#ffffff' : '#f0f3fa';
-  ctx.font = 'bold 36px "Songti SC", "SimSun", "Noto Serif SC", serif';
-  ctx.letterSpacing = '6px';
-  ctx.fillText(card.nameZh, width / 2, 450);
+  ctx.font = language === 'zh'
+    ? 'bold 36px "Songti SC", "SimSun", "Noto Serif SC", serif'
+    : '600 28px "Cinzel", "Times New Roman", serif';
+  ctx.letterSpacing = language === 'zh' ? '6px' : '3px';
+  ctx.fillText(title, width / 2, 450);
 
   ctx.fillStyle = isHovered ? 'rgba(245, 215, 127, 0.95)' : 'rgba(200, 178, 115, 0.75)';
   ctx.font = '12px "Cinzel", "Times New Roman", serif';
   ctx.letterSpacing = '3px';
-  ctx.fillText(card.nameEn, width / 2, 480);
+  ctx.fillText(keyword, width / 2, 480);
   ctx.letterSpacing = '0px';
 
   // Divider line
@@ -337,20 +355,27 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
 
   // 6. Keywords
   ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.font = '14px "Songti SC", "SimSun", sans-serif';
+  ctx.font = language === 'zh'
+    ? '14px "Songti SC", "SimSun", sans-serif'
+    : '13px "Cinzel", "Times New Roman", serif';
   ctx.letterSpacing = '1px';
-  ctx.fillText(card.keywordUpright, width / 2, 540);
+  ctx.fillText(keyword, width / 2, 540);
 
   // 7. Encounter Preview Hint
+  const encounterName = tarotEncounterName(language, card.id, card.encounter.name);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.font = '13px "Songti SC", "SimSun", sans-serif';
-  ctx.fillText(`前路邂逅：${card.encounter.name}`, width / 2, 595);
+  ctx.font = language === 'zh'
+    ? '13px "Songti SC", "SimSun", sans-serif'
+    : '12px "Cinzel", "Times New Roman", serif';
+  ctx.fillText(`${copy[language].cardEncounter}${encounterName}`, width / 2, 595);
 
   // 8. Bottom Selection Cue
   ctx.fillStyle = isHovered ? '#ffd166' : 'rgba(255, 255, 255, 0.4)';
   ctx.font = '12px "Cinzel", "Songti SC", sans-serif';
   ctx.letterSpacing = '2px';
-  ctx.fillText(`[ ✦ 点击或按 ${index + 1} 抽取 ✦ ]`, width / 2, 730);
+  // Mirror the selection cue around the numeral: upright cards cue below,
+  // reversed cards cue above so the two orientations remain visually balanced.
+  ctx.fillText(copy[language].cardSelect, width / 2, isReversed ? 130 : 690);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.generateMipmaps = true;

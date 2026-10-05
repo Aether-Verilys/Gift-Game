@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TarotCardDef } from '../types';
 import { Gift, Shield, ArrowRight, Move, Clock, Sparkles } from 'lucide-react';
-import { Language, copy, stageCopy } from '../i18n';
+import { Language, copy, interpolate, stageCopy, tarotEncounterName, tarotGiftReaction } from '../i18n';
 
 interface EncounterSceneHUDProps {
   card: TarotCardDef;
@@ -33,17 +33,23 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
     1: stageCopy(language, 1), 2: stageCopy(language, 2), 3: stageCopy(language, 3),
   };
 
-  const reactionText =
-    offeredGift === true
-      ? card.encounter.giftReactionOffered
-      : card.encounter.giftReactionKept;
+  const reactionText = tarotGiftReaction(
+    language,
+    card.id,
+    offeredGift === true,
+    offeredGift === true ? card.encounter.giftReactionOffered : card.encounter.giftReactionKept,
+  );
+  const drawnOrientation = card.drawnOrientation ?? 'upright';
+  const currentOrientation = offeredGift === true
+    ? (drawnOrientation === 'upright' ? 'reversed' : 'upright')
+    : drawnOrientation;
 
   const displayDecisionSeconds = Math.max(0, Math.ceil(decisionTimeLeft));
   const displayAdvanceSeconds = Math.max(0, Math.ceil(autoAdvanceTimeLeft));
 
   return (
     <AnimatePresence>
-      <div className="absolute inset-x-0 bottom-6 sm:bottom-8 z-30 pointer-events-none flex flex-col items-center px-4">
+      <div className="absolute inset-x-0 top-24 sm:top-28 z-40 pointer-events-none flex flex-col items-center px-4">
         {/* State A: Before Decision - Minimalist Floating In-Scene Drag Guide with Countdown */}
         {offeredGift === null && (
           <motion.div
@@ -62,7 +68,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                     {stageNames[stage]} · {copy[language].encounter}
                   </div>
                   <div className="text-xs sm:text-sm font-artistic text-white tracking-[0.04em] font-medium text-glow-sm">
-                    {language === 'zh' ? '前方实体' : 'Entity ahead'}
+                    {tarotEncounterName(language, card.id, card.encounter.name)}
                   </div>
                 </div>
               </div>
@@ -83,11 +89,11 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                       ? 'border-red-500/60 bg-red-950/40 text-red-300 animate-pulse'
                       : 'border-white/15 bg-white/5 text-white/70'
                   }`}
-                  title="时间结束将默认保留礼物于行囊"
+                  title={copy[language].keepGift}
                 >
                   <Clock className="w-3 h-3" />
                   <span>{displayDecisionSeconds}s</span>
-                  <span className="text-[9px] text-white/40 font-artistic hidden md:inline">默认不给</span>
+                  <span className="text-[9px] text-white/40 font-artistic hidden md:inline">{copy[language].defaultKeep}</span>
                 </div>
               </div>
 
@@ -96,7 +102,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                 <button
                   onClick={() => onDecision(true)}
                   className="py-1.5 px-3 rounded-full bg-red-950/50 hover:bg-red-900/80 border border-red-500/40 hover:border-red-400 text-[11px] font-artistic text-red-200 transition-all cursor-pointer flex items-center gap-1.5"
-                  title="交付礼物（翻转为逆位）"
+                  title={copy[language].offerGift}
                 >
                   <Gift className="w-3 h-3 text-red-400" />
                   <span>{copy[language].give}</span>
@@ -105,7 +111,7 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
                 <button
                   onClick={() => onDecision(false)}
                   className="py-1.5 px-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-[11px] font-artistic text-white/80 transition-all cursor-pointer flex items-center gap-1.5"
-                  title="保留礼物（坚守顺位）"
+                  title={copy[language].keepGift}
                 >
                   <Shield className="w-3 h-3 text-white/50" />
                   <span>{copy[language].keep}</span>
@@ -137,19 +143,19 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
 
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
                 <div className="flex items-center gap-2 text-[10px] font-garamond uppercase tracking-[0.16em] text-white/50">
-                  <span>{stageNames[stage]}之章</span>
+                  <span>{stageNames[stage]}</span>
                   <span>·</span>
-                <span className="text-white/80">{language === 'zh' ? '实体回应' : 'Entity responds'}</span>
+                <span className="text-white/80">{copy[language].entityResponds}</span>
                 </div>
 
                 <div
                   className={`text-[10px] font-artistic px-2.5 py-0.5 rounded-full ${
-                    offeredGift
+                      currentOrientation === 'reversed'
                       ? 'bg-red-500/20 text-red-300 border border-red-500/40'
                       : 'bg-white/10 text-white/70 border border-white/20'
                   }`}
                 >
-                  {offeredGift ? '塔罗翻转 · 逆位' : '塔罗坚守 · 顺位'}
+                  {currentOrientation === 'reversed' ? copy[language].reversed : copy[language].upright}
                 </div>
               </div>
 
@@ -160,18 +166,20 @@ export const EncounterSceneHUD: React.FC<EncounterSceneHUDProps> = ({
               <div className="pt-2 flex items-center justify-between">
                 <span className="text-[11px] font-artistic text-white/40 flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-white/30" />
-                  <span>{stage === 3 ? '准备生成最终解读' : `${displayAdvanceSeconds}s 后自动进入下一阶段...`}</span>
+                  <span>{stage === 3 ? copy[language].preparingReading : interpolate(copy[language].autoAdvance, { s: displayAdvanceSeconds })}</span>
                 </span>
 
-                <button
-                  onClick={onContinue}
-                  className="py-1.5 px-4 rounded-[2px] bg-white/10 hover:bg-white/25 border border-white/25 hover:border-white/50 text-xs font-artistic text-white transition-all cursor-pointer flex items-center gap-2 group"
-                >
-                  <span>
-                    {stage === 1 ? '步入经过之章' : stage === 2 ? '步入结果之章' : '凝聚星海，生成终末解读'}
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5 text-white/70 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                {stage < 3 && (
+                  <button
+                    onClick={onContinue}
+                    className="py-1.5 px-4 rounded-[2px] bg-white/10 hover:bg-white/25 border border-white/25 hover:border-white/50 text-xs font-artistic text-white transition-all cursor-pointer flex items-center gap-2 group"
+                  >
+                    <span>
+                      {stage === 1 ? copy[language].enterPassage : copy[language].enterResult}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 text-white/70 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

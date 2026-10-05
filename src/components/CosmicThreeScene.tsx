@@ -4,6 +4,9 @@ import { WalkPace, CameraView, EncounterData, GamePhase, TarotCardDef } from '..
 import { audioService } from '../services/audioService';
 import { createTarotFrontTexture, createTarotBackTexture } from '../utils/tarotCanvasTexture';
 import { createTarotEntities } from '../utils/createTarotEntities';
+import { createGiftOfferingEffect } from '../utils/giftOfferingShader';
+import { createPlanetEcology } from '../utils/createPlanetEcology';
+import { Language } from '../i18n';
 
 interface CosmicThreeSceneProps {
   pace: WalkPace;
@@ -11,13 +14,16 @@ interface CosmicThreeSceneProps {
   sceneryShift?: string;
   gamePhase?: GamePhase;
   stageCards?: TarotCardDef[];
+  stage?: number;
   onSelectCard?: (card: TarotCardDef) => void;
   encounterActive?: boolean;
   encounterType?: EncounterData['type'] | null;
-  approachProgress?: number; // 0 to 1
+  onApproachArrived?: () => void; // fired when the duo reaches the colossus
   giftOffered?: boolean | null; // true: offered, false: kept
   onGiftDroppedOnEntity?: () => void;
   onRedObjectResonance?: (state: { isDragging: boolean; distance: number; resonanceLevel: number }) => void;
+  language?: Language;
+  onJourneyComplete?: () => void; // fired once the duo closes a full lap of the planet
 }
 
 export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
@@ -26,13 +32,16 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   sceneryShift = 'normal',
   gamePhase = 'card_selection',
   stageCards = [],
+  stage = 1,
   onSelectCard,
   encounterActive = false,
   encounterType = null,
-  approachProgress = 0,
+  onApproachArrived,
   giftOffered = null,
   onGiftDroppedOnEntity,
   onRedObjectResonance,
+  language = 'zh',
+  onJourneyComplete,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -42,14 +51,21 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   const sceneryShiftRef = useRef<string>(sceneryShift);
   const gamePhaseRef = useRef<GamePhase>(gamePhase);
   const stageCardsRef = useRef<TarotCardDef[]>(stageCards);
+  const stageRef = useRef(stage);
   const onSelectCardRef = useRef(onSelectCard);
   const updateCardsCallback = useRef<((cards: TarotCardDef[]) => void) | null>(null);
   const encounterActiveRef = useRef<boolean>(encounterActive);
   const encounterTypeRef = useRef<EncounterData['type'] | null>(encounterType);
-  const approachProgressRef = useRef<number>(approachProgress);
+  const onApproachArrivedRef = useRef(onApproachArrived);
   const giftOfferedRef = useRef<boolean | null>(giftOffered);
   const onGiftDroppedOnEntityRef = useRef(onGiftDroppedOnEntity);
   const onRedObjectResonanceRef = useRef(onRedObjectResonance);
+  const languageRef = useRef<Language>(language);
+  const onJourneyCompleteRef = useRef(onJourneyComplete);
+
+  useEffect(() => {
+    onJourneyCompleteRef.current = onJourneyComplete;
+  }, [onJourneyComplete]);
 
   useEffect(() => {
     onRedObjectResonanceRef.current = onRedObjectResonance;
@@ -81,6 +97,15 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   }, [stageCards]);
 
   useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+
+  useEffect(() => {
+    languageRef.current = language;
+    updateCardsCallback.current?.(stageCardsRef.current);
+  }, [language]);
+
+  useEffect(() => {
     onSelectCardRef.current = onSelectCard;
   }, [onSelectCard]);
 
@@ -93,8 +118,8 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   }, [encounterType]);
 
   useEffect(() => {
-    approachProgressRef.current = approachProgress;
-  }, [approachProgress]);
+    onApproachArrivedRef.current = onApproachArrived;
+  }, [onApproachArrived]);
 
   useEffect(() => {
     giftOfferedRef.current = giftOffered;
@@ -430,10 +455,44 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     // Planet center is placed at (0, -planetRadius, 0), so the apex is at (0, 0, 0)
     planetGroup.position.set(0, -planetRadius, 0);
 
-    // Dark core sphere to mask background stars
-    const planetCoreGeo = new THREE.SphereGeometry(planetRadius * 0.998, 48, 48);
-    const planetCoreMat = new THREE.MeshBasicMaterial({ color: 0x000002 });
-    const planetCore = new THREE.Mesh(planetCoreGeo, planetCoreMat);
+    // Minimal monochrome planet shader. It turns spherical coordinates into
+    // sparse contour bands and faceted terrain islands, keeping the world
+    // graphic and black-and-white without borrowing any Tarot-colossus look.
+    const planetCoreGeo = new THREE.SphereGeometry(planetRadius * 0.998, 96, 64);
+    const planetSurfaceMat = new THREE.ShaderMaterial({
+      uniforms: { uRadius: { value: planetRadius } },
+      vertexShader: `
+        varying vec3 vLocalPosition;
+        varying vec3 vNormal;
+        void main() {
+          vLocalPosition = position;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uRadius;
+        varying vec3 vLocalPosition;
+        varying vec3 vNormal;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+        void main() {
+          vec3 unit = normalize(vLocalPosition);
+          float longitude = atan(unit.z, unit.x);
+          float latitude = asin(unit.y);
+          vec2 cell = vec2(floor((longitude + 3.14159) * 2.7), floor((latitude + 1.5708) * 4.2));
+          float terrain = hash(cell);
+          float contour = abs(fract((latitude + sin(longitude * 3.0) * 0.035) * 13.0) - 0.5);
+          float contourLine = 1.0 - smoothstep(0.465, 0.495, contour);
+          float island = step(0.86, terrain) * smoothstep(0.05, 0.32, abs(sin(longitude * 2.0 + latitude * 6.0)));
+          float rim = max(contourLine * 0.38, island * 0.16);
+          float lightFacing = smoothstep(-0.35, 0.75, vNormal.y);
+          vec3 ink = vec3(0.006);
+          vec3 chalk = vec3(0.89 + lightFacing * 0.11);
+          gl_FragColor = vec4(mix(ink, chalk, rim), 1.0);
+        }
+      `,
+    });
+    const planetCore = new THREE.Mesh(planetCoreGeo, planetSurfaceMat);
     planetGroup.add(planetCore);
 
     // Elegant Wireframe Contour Rings of the Planet
@@ -520,6 +579,112 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       landmarkGroup.add(markerWrapper);
     }
     planetGroup.add(landmarkGroup);
+
+    // Terrain, flora, ruins, spores and birds (see createPlanetEcology).
+    const ecology = createPlanetEcology(planetRadius, Math.min(window.devicePixelRatio || 1, 2));
+    planetGroup.add(ecology.surface);
+    scene.add(ecology.sky);
+
+    // Living terrain: bioluminescent plants, layered stone shelves and a
+    // half-buried ruin give the otherwise geometric planet a sense of age.
+    const ecologyGroup = new THREE.Group();
+    const plantGlowMat = new THREE.MeshBasicMaterial({ color: 0xf4f4f4, transparent: true, opacity: 0.82 });
+    const plantCoreMat = new THREE.MeshBasicMaterial({ color: 0x080808, transparent: true, opacity: 0.92 });
+    const terrainLineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.52 });
+    const ruinMat = new THREE.MeshBasicMaterial({ color: 0x050505 });
+    const ruinLineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72 });
+
+    const addSurfacePiece = (angle: number, latitude: number, piece: THREE.Object3D) => {
+      const wrapper = new THREE.Group();
+      wrapper.rotation.x = angle;
+      wrapper.rotation.z = latitude;
+      piece.position.y += planetRadius;
+      wrapper.add(piece);
+      ecologyGroup.add(wrapper);
+    };
+
+    // Violet mineral shelves, placed in small clusters along the horizon.
+    for (let i = 0; i < 12; i++) {
+      const cluster = new THREE.Group();
+      const count = 2 + (i % 3);
+      for (let j = 0; j < count; j++) {
+        const h = 0.45 + ((i * 17 + j * 11) % 8) * 0.12;
+        const geo = new THREE.ConeGeometry(0.13 + j * 0.025, h, 5);
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: j % 2 ? 0xf4f4f4 : 0x111111, transparent: true, opacity: 0.7 }));
+        mesh.position.set((j - (count - 1) / 2) * 0.24, h / 2, (j % 2) * 0.12);
+        mesh.rotation.z = (j - 1) * 0.16;
+        cluster.add(mesh);
+      }
+      addSurfacePiece((i / 12) * Math.PI * 2 + 0.18, (i % 2 ? 0.18 : -0.12), cluster);
+    }
+
+    // Three luminous flora species: stalks, floating pods and broad leaves.
+    for (let i = 0; i < 16; i++) {
+      const plant = new THREE.Group();
+      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.075, 0.8 + (i % 3) * 0.18, 6), plantCoreMat);
+      stalk.position.y = 0.45;
+      plant.add(stalk);
+      for (let j = 0; j < 3; j++) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.16 + j * 0.025, 8, 5), plantGlowMat);
+        leaf.scale.set(1.7, 0.35, 0.7);
+        leaf.position.set(Math.sin(j * 2.1) * 0.18, 0.6 + j * 0.22, Math.cos(j * 2.1) * 0.1);
+        leaf.rotation.z = j % 2 ? -0.45 : 0.45;
+        plant.add(leaf);
+      }
+      addSurfacePiece((i / 16) * Math.PI * 2 + 0.42, (i % 3 - 1) * 0.11, plant);
+    }
+
+    // A weathered ring ruin with a broken lintel, visible as the path turns.
+    const ruin = new THREE.Group();
+    const ruinBase = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.55, 0.34, 12), ruinMat);
+    ruinBase.position.y = 0.17;
+    ruin.add(ruinBase);
+    for (const x of [-0.9, 0.9]) {
+      const pillarGeo = new THREE.BoxGeometry(0.24, 1.75, 0.3);
+      const pillar = new THREE.Mesh(pillarGeo, ruinMat);
+      pillar.position.set(x, 1.02, 0);
+      ruin.add(pillar, new THREE.LineSegments(new THREE.EdgesGeometry(pillarGeo), ruinLineMat));
+    }
+    const lintelGeo = new THREE.BoxGeometry(1.9, 0.22, 0.34);
+    const lintel = new THREE.Mesh(lintelGeo, ruinMat);
+    lintel.position.set(-0.12, 1.82, 0);
+    lintel.rotation.z = -0.16;
+    ruin.add(lintel, new THREE.LineSegments(new THREE.EdgesGeometry(lintelGeo), ruinLineMat));
+    const rune = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.035, 6, 18), ruinLineMat);
+    rune.position.set(0, 0.9, 0.18);
+    rune.rotation.x = Math.PI / 2;
+    ruin.add(rune);
+    addSurfacePiece(Math.PI * 1.35, 0.02, ruin);
+
+    // Low contour lines make the ground read as layered alien sediment.
+    for (let i = 0; i < 8; i++) {
+      const curve = new THREE.EllipseCurve(0, 0, 1.4 + i * 0.18, 0.45 + i * 0.06, 0, Math.PI * 2, false, 0);
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(28).map(p => new THREE.Vector3(p.x, 0.012, p.y))), terrainLineMat);
+      line.rotation.x = Math.PI / 2;
+      addSurfacePiece(Math.PI * 0.72 + i * 0.08, -0.06, line);
+    }
+    planetGroup.add(ecologyGroup);
+
+    // Origin gate: the duo starts beneath it, and a full lap of the planet
+    // brings them back through it to end the journey.
+    const originGate = new THREE.Group();
+    const gateMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+    for (const side of [-1, 1]) {
+      const pillarGeo = new THREE.BoxGeometry(0.5, 7, 0.5);
+      const pillar = new THREE.Group();
+      pillar.add(new THREE.Mesh(pillarGeo, new THREE.MeshBasicMaterial({ color: 0x000000 })));
+      pillar.add(new THREE.LineSegments(new THREE.EdgesGeometry(pillarGeo), gateMat));
+      pillar.position.set(side * 4.2, 3.5, 0);
+      originGate.add(pillar);
+    }
+    const archGeo = new THREE.BufferGeometry().setFromPoints(
+      new THREE.EllipseCurve(0, 0, 4.2, 2.4, 0, Math.PI, false, 0).getPoints(32).map((p) => new THREE.Vector3(p.x, p.y + 7, 0))
+    );
+    originGate.add(new THREE.Line(archGeo, gateMat));
+    originGate.position.y = planetRadius;
+    const originGatePivot = new THREE.Group();
+    originGatePivot.add(originGate);
+    planetGroup.add(originGatePivot);
     scene.add(planetGroup);
 
     // 8. The Wanderer & Steed 3D Models
@@ -764,7 +929,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     armRGroup.add(armR);
     humanGroup.add(armRGroup);
 
-    // Traveling Satchel / Backpack on wanderer's back (红礼初始存放于此)
+    // Traveling Satchel / Backpack on wanderer's back (gift stored here initially)
     const backpackGroup = new THREE.Group();
     backpackGroup.position.set(0, 1.45, 0.2);
 
@@ -979,16 +1144,25 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     // Materializes when a Tarot card is drawn, approaches the duo,
     // and reacts dynamically when the red gift is offered or kept.
     // -------------------------------------------------------------
-    // The entity approaches the traveler, then stops before the model's
-    // collision envelope reaches the horse or rider.
-    const encounterApproachStartZ = -32;
-    const encounterStopZ = -25;
+    // The colossus is anchored to the planet surface, so it rises over the
+    // horizon as the duo walks, and sinks back into the ground after the
+    // choice while the journey carries on. Angles are measured from the apex
+    // (negative = ahead of the duo along -Z).
+    const encounterArriveAngle = -0.585; // where the duo stops in front of it
+    const encounterSinkDepth = 60; // deep enough to hide the widest crown inside the planet
     const encounterRootGroup = new THREE.Group();
-    encounterRootGroup.position.set(0, 0, -32);
     encounterRootGroup.visible = false;
-    scene.add(encounterRootGroup);
+    planetGroup.add(encounterRootGroup);
+    const planetXAxis = new THREE.Vector3(1, 0, 0);
+    let encounterShownType: string | null = null;
+    let encounterAnchor = 0; // planet-local angle of the colossus
+    let encounterLift = -1; // 0 = standing on the surface, -1 = fully sunk
+    let encounterSinkTimer = -1;
 
     const encounterSubGroups: Record<string, THREE.Group> = createTarotEntities();
+    const encounterClearRadius: Record<string, number> = {};
+    // Gift offering is rendered on the colossus surface itself (see giftOfferingShader).
+    const giftOffering = createGiftOfferingEffect();
     const monumentLight = new THREE.DirectionalLight(0xe4eaff, 2.4);
     monumentLight.position.set(20, 45, 25);
     scene.add(monumentLight);
@@ -1000,6 +1174,8 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       const scale = Math.min(44 / size.y, 48 / Math.max(size.x, size.z));
       model.scale.setScalar(scale);
       model.position.y = 0.5 - bounds.min.y * scale;
+      // Patch only the sculpture; the foundation shares materials with the horse.
+      giftOffering.apply(model);
       const monument = new THREE.Group();
       monument.add(model);
       const radius = Math.max(size.x, size.z) * scale * 0.55;
@@ -1011,50 +1187,26 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       foundationEdges.position.copy(foundation.position);
       monument.add(foundation, foundationEdges);
       encounterSubGroups[type] = monument;
+      // Angular footprint, used to clear plants and ruins around the colossus.
+      encounterClearRadius[type] = radius / planetRadius + 0.1;
       encounterRootGroup.add(monument);
     }
-    const surfaceNormal = new THREE.Vector3();
-    const surfaceUp = new THREE.Vector3(0, 1, 0);
 
     // -------------------------------------------------------------
     // 10A. Encounter Sweeping Light Effect (扫光)
-    // Triggers when the red gift is dropped onto the Tarot object.
+    // Triggers when the red gift is dropped onto the Tarot object. The
+    // visible sweep lives in the colossus shader; this light only warms
+    // the surroundings as the energy front climbs.
     // -------------------------------------------------------------
-    const sweepLightGroup = new THREE.Group();
-    sweepLightGroup.scale.setScalar(10);
-    encounterRootGroup.add(sweepLightGroup);
-
-    const sweepRingGeo = new THREE.RingGeometry(0.2, 3.4, 36);
-    const sweepRingMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const sweepRingMesh = new THREE.Mesh(sweepRingGeo, sweepRingMat);
-    sweepRingMesh.rotation.x = -Math.PI / 2;
-    sweepLightGroup.add(sweepRingMesh);
-
-    const sweepCylGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.6, 32, 1, true);
-    const sweepCylMat = new THREE.MeshBasicMaterial({
-      color: 0xff4d6d,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const sweepCylMesh = new THREE.Mesh(sweepCylGeo, sweepCylMat);
-    sweepLightGroup.add(sweepCylMesh);
-
-    const sweepPointLight = new THREE.PointLight(0xff4466, 0, 26);
-    sweepLightGroup.add(sweepPointLight);
+    const sweepPointLight = new THREE.PointLight(0xff4466, 0, 60, 1.6);
+    sweepPointLight.position.set(0, 0, 6);
+    encounterRootGroup.add(sweepPointLight);
+    const monumentTop = 44.5;
+    let offerPrimeTarget = 0;
 
     let sweepActive = false;
     let sweepProgress = 0;
-    const sweepDuration = 1.25;
+    const sweepDuration = 2.4;
 
     // Crimson burst sparks when gift dissolves/is absorbed
     const burstSparkCount = 48;
@@ -1170,7 +1322,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         cardGroup.position.copy(config.pos);
         cardGroup.rotation.copy(config.rot);
 
-        const frontTex = createTarotFrontTexture(cardDef, idx, false);
+        const frontTex = createTarotFrontTexture(cardDef, idx, false, languageRef.current);
         const backTex = createTarotBackTexture();
 
         const edgeMat = new THREE.MeshStandardMaterial({ color: 0x111118, roughness: 0.5, metalness: 0.3 });
@@ -1236,7 +1388,32 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       }, 160);
       setTimeout(() => {
         onSelectCardRef.current?.(selectedItem.cardDef);
-      }, 480);
+      }, 1450);
+    };
+
+    const getCardSlotWorldTarget = () => {
+      const viewportWidth = renderer.domElement.clientWidth || window.innerWidth;
+      const viewportHeight = renderer.domElement.clientHeight || window.innerHeight;
+      const isSmall = viewportWidth < 640;
+      const slotWidth = isSmall ? 56 : 64;
+      const slotGap = isSmall ? 8 : 10;
+      const slotCenterX = 24 + slotWidth / 2 + (Math.max(1, Math.min(3, stageRef.current)) - 1) * (slotWidth + slotGap);
+      const slotCenterY = 88;
+      const ndcX = (slotCenterX / viewportWidth) * 2 - 1;
+      const ndcY = 1 - (slotCenterY / viewportHeight) * 2;
+      const distance = 18;
+      const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance;
+      const halfWidth = halfHeight * camera.aspect;
+      const direction = new THREE.Vector3();
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+      up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+      return camera.position.clone()
+        .add(direction.multiplyScalar(distance))
+        .add(right.multiplyScalar(ndcX * halfWidth))
+        .add(up.multiplyScalar(ndcY * halfHeight));
     };
 
     // Initialize 3D cards from current ref
@@ -1354,6 +1531,11 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           desired.z = THREE.MathUtils.clamp(desired.z, -32, 32);
           redTargetPos.copy(desired);
 
+          const monument = encounterSubGroups[encounterTypeRef.current || ''];
+          offerPrimeTarget =
+            gamePhaseRef.current === 'encounter_decision' && monument?.visible &&
+            raycaster.intersectObject(monument, true).length > 0 ? 1 : 0.35;
+
           const curDist = redObjectGroup.position.distanceTo(duoGroup.position);
           onRedObjectResonanceRef.current?.({
             isDragging: true,
@@ -1378,6 +1560,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     const onPointerUp = (e: PointerEvent) => {
       if (isDraggingRed) {
         isDraggingRed = false;
+        offerPrimeTarget = 0;
         try {
           renderer.domElement.releasePointerCapture?.(e.pointerId);
         } catch {
@@ -1416,6 +1599,24 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
 
+    // One solitary wireframe bird circles the planet on a tilted great-circle
+    // path. Its direction is randomized once per visit, so it never reads as
+    // a synchronized flock or a background screen-space decoration.
+    const birdMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72 });
+    const bird = new THREE.Group();
+    const wingGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.48, 0, 0), new THREE.Vector3(0, 0.14, -0.08), new THREE.Vector3(0.48, 0, 0),
+    ]);
+    bird.add(new THREE.Line(wingGeo, birdMat));
+    bird.scale.setScalar(0.72);
+    scene.add(bird);
+    const birdCenter = new THREE.Vector3(0, -planetRadius, 0);
+    const birdOrbitRadius = planetRadius + 3.6;
+    const birdInclination = 0.12 + Math.random() * 0.08;
+    const birdDirection = Math.random() > 0.5 ? 1 : -1;
+    const birdPhase = Math.random() * Math.PI * 2;
+    const birdSpeed = (0.12 + Math.random() * 0.08) * birdDirection;
+
     // 11. Animation Render Loop
     let animId: number;
     let clock = new THREE.Clock();
@@ -1423,29 +1624,147 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     let lastStepTime = 0;
     let shootingStarTimer = 0;
 
+    // Journey: planet rotation is the single, continuous travel distance.
+    const TAU = Math.PI * 2;
+    const walkRotSpeed = 0.04; // rad/s at a walking pace
+    let gaitMult = 1;
+    let prevPhase: GamePhase | null = null;
+    // The lap is split into four equal legs: gate → colossus 1 → 2 → 3 → gate.
+    const LEG = TAU / 4;
+    const legDuration = 6; // seconds per leg, regardless of how far the duo strolled
+    const legEaseShare = 0.3; // final share of each leg spent slowing into the stop
+    // Time of the cruise+ease curve below is 1.569 * distance / cruise.
+    const legTimeFactor = 1.569;
+    let legCruise = 0.3; // rad/s, recomputed at the start of each leg
+    let legStartRot = 0;
+    let legSpan = 1;
+    const beginLeg = (target: number) => {
+      legStartRot = planetGroup.rotation.x;
+      legTarget = target;
+      legSpan = Math.max(1e-3, target - legStartRot);
+      legCruise = legTimeFactor * legSpan / legDuration;
+    };
+    let legTarget = 0; // planet rotation where the current leg ends
+    let approachArrived = false;
+    let homecomingDone = false;
+    let gateLift = 0;
+    let lapBase = 0; // planet rotation where the current lap began
+    let prevStage = stageRef.current;
+
     const animate = () => {
       animId = requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.1);
       const elapsed = clock.getElapsedTime();
 
+      const birdAngle = elapsed * birdSpeed + birdPhase;
+      const cosAngle = Math.cos(birdAngle);
+      const sinAngle = Math.sin(birdAngle);
+      const orbitY = Math.sin(birdInclination) * sinAngle;
+      const orbitZ = Math.cos(birdInclination) * sinAngle;
+      const birdPosition = birdCenter.clone().add(new THREE.Vector3(
+        birdOrbitRadius * cosAngle,
+        birdOrbitRadius * orbitY,
+        birdOrbitRadius * orbitZ,
+      ));
+      const tangent = new THREE.Vector3(
+        -Math.sin(birdAngle),
+        Math.sin(birdInclination) * cosAngle,
+        Math.cos(birdInclination) * cosAngle,
+      ).multiplyScalar(birdDirection);
+      bird.position.copy(birdPosition);
+      bird.rotation.y = Math.atan2(tangent.x, tangent.z);
+      bird.rotation.x = -Math.atan2(tangent.y, Math.max(0.001, Math.hypot(tangent.x, tangent.z)));
+      const flap = 0.82 + Math.abs(Math.sin(elapsed * 5.4)) * 0.24;
+      bird.scale.set(0.72, flap * 0.72, 0.72);
+
       // Mouse smoothing
       mouse.x += (mouse.targetX - mouse.x) * 0.05;
       mouse.y += (mouse.targetY - mouse.y) * 0.05;
 
-      // Speed calculation
-      let speedMult = 1.0;
-      if (paceRef.current === 'pause') speedMult = 0;
-      if (paceRef.current === 'walk') speedMult = 1.0;
-      if (paceRef.current === 'trot') speedMult = 1.85;
-
-      // Advance walk cycle
-      walkCycle += dt * 3.6 * speedMult;
+      const phase = gamePhaseRef.current;
+      if (stageRef.current < prevStage) {
+        // Restarted mid-lap: begin a fresh lap from where the duo stands.
+        lapBase = planetGroup.rotation.x;
+        originGatePivot.rotation.x = -lapBase;
+      }
+      prevStage = stageRef.current;
+      if (phase !== prevPhase) {
+        if (phase === 'approaching') {
+          // Each colossus waits at its own quarter of the lap, buried until
+          // the duo draws near.
+          beginLeg(lapBase + Math.min(3, stageRef.current) * LEG);
+          approachArrived = false;
+          encounterAnchor = encounterArriveAngle - legTarget;
+          encounterShownType = encounterTypeRef.current;
+          encounterLift = -1;
+          encounterSinkTimer = -1;
+        } else if (phase === 'homecoming') {
+          // The last leg closes the lap at the origin gate.
+          beginLeg(lapBase + TAU);
+          homecomingDone = false;
+        }
+        prevPhase = phase;
+      }
+      if (phase === 'approaching' && !encounterShownType) encounterShownType = encounterTypeRef.current;
 
       // Rotate the ground in the opposite direction of travel. The horse and
       // wanderer face toward -Z (the encounter), so the terrain must drift
       // toward +Z beneath their feet to make them visibly advance forward.
-      const planetRotSpeed = 0.04 * speedMult;
-      planetGroup.rotation.x += dt * planetRotSpeed;
+      let paceMult = 1.0;
+      if (paceRef.current === 'pause') paceMult = 0;
+      if (paceRef.current === 'trot') paceMult = 1.85;
+      const prevRot = planetGroup.rotation.x;
+      // Strolling while choosing a card never eats into the next leg.
+      const strollCap = lapBase + Math.min(3, stageRef.current) * LEG - 1.3;
+      const capEase = THREE.MathUtils.clamp((strollCap - prevRot) / 0.3, 0, 1);
+      let nextRot = prevRot + dt * walkRotSpeed * paceMult * capEase;
+      const legProgress = THREE.MathUtils.clamp((prevRot - legStartRot) / legSpan, 0, 1);
+      // Same speed curve for every leg: cruise, then ease into the stop.
+      const legStep = (cruise: number) => {
+        const remaining = legTarget - prevRot;
+        const v = cruise * THREE.MathUtils.clamp(remaining / (legSpan * legEaseShare), 0.15, 1);
+        return Math.min(legTarget, prevRot + v * dt);
+      };
+      if (phase === 'approaching') {
+        nextRot = legStep(legCruise);
+        if (!approachArrived && legTarget - nextRot < 1e-4) {
+          approachArrived = true;
+          onApproachArrivedRef.current?.();
+        }
+      } else if (phase === 'encounter_decision' && prevRot < legTarget - 1e-4) {
+        // Arrival was skipped: dash the rest of the way.
+        nextRot = legStep(legCruise * 4);
+      } else if (phase === 'homecoming') {
+        nextRot = legStep(legCruise);
+        if (!homecomingDone && legTarget - nextRot < 1e-4) {
+          homecomingDone = true;
+          // Back at the origin gate: a full lap is identical to rotation 0.
+          nextRot = 0;
+          lapBase = 0;
+          legTarget = 0; // hold at the gate until the reading opens
+          originGatePivot.rotation.x = 0;
+          onJourneyCompleteRef.current?.();
+        }
+      }
+      const groundStep = homecomingDone && nextRot === 0 && prevRot > 1 ? 0 : nextRot - prevRot;
+      planetGroup.rotation.x = nextRot;
+
+      // The origin gate stays buried during the stages (it would block the
+      // sky cards) and rises ahead on the final leg to mark the lap's end.
+      const gateTarget = phase === 'homecoming'
+        ? THREE.MathUtils.smoothstep(legProgress, 0.35, 0.8)
+        : phase === 'final_reading' ? 1 : 0;
+      gateLift = THREE.MathUtils.lerp(gateLift, gateTarget, 0.06);
+      originGate.position.y = planetRadius - (1 - gateLift) * 10;
+      originGate.visible = gateLift > 0.001;
+
+      // Gait follows the actual ground speed so feet never skate.
+      const groundMult = THREE.MathUtils.clamp(groundStep / dt / walkRotSpeed, 0, 3.4);
+      gaitMult = THREE.MathUtils.lerp(gaitMult, groundMult, 0.12);
+      const speedMult = gaitMult < 0.02 ? 0 : gaitMult;
+
+      // Advance walk cycle
+      walkCycle += dt * 3.6 * speedMult;
 
       // Subtle celestial rotation & realistic astronomical scintillation
       celestialGroup.rotation.y = elapsed * 0.012;
@@ -1582,22 +1901,40 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         tetherMat.opacity = THREE.MathUtils.lerp(tetherMat.opacity, 0, 0.1);
       }
 
-      // Dynamic Encounter 3D Entity Animation & Gift Trajectory
-      if (encounterActiveRef.current && encounterTypeRef.current) {
-        encounterRootGroup.visible = true;
+      // Colossus lifecycle: rise during the approach, stand for the choice,
+      // then sink back into the planet while the duo walks on.
+      if (encounterShownType) {
+        if (phase === 'approaching') {
+          // Rise out of the ground over the last stretch of the leg.
+          encounterLift = THREE.MathUtils.smoothstep(legProgress, 0.3, 0.85) - 1;
+        } else if (giftOfferedRef.current === null && phase === 'encounter_decision') {
+          encounterLift = THREE.MathUtils.lerp(encounterLift, 0, 0.1);
+        } else {
+          if (encounterSinkTimer < 0) encounterSinkTimer = 0;
+          encounterSinkTimer += dt;
+          encounterLift = -THREE.MathUtils.smoothstep((encounterSinkTimer - 1.6) / 3.2, 0, 1);
+          if (encounterLift <= -0.999) encounterShownType = null;
+        }
+      }
+      encounterRootGroup.visible = encounterShownType !== null;
+      if (encounterShownType) {
         Object.keys(encounterSubGroups).forEach((k) => {
-          encounterSubGroups[k].visible = k === encounterTypeRef.current;
+          encounterSubGroups[k].visible = k === encounterShownType;
         });
+        const r = planetRadius + encounterLift * encounterSinkDepth;
+        encounterRootGroup.position.set(0, r * Math.cos(encounterAnchor), r * Math.sin(encounterAnchor));
+        encounterRootGroup.quaternion.setFromAxisAngle(planetXAxis, encounterAnchor);
+      }
 
-        // Follow the spherical surface during approach, then stand still.
-        // Keep a generous buffer in front of the scaled-up monument. The
-        // visible model can extend several units toward +Z after normalization.
-        const groundZ = THREE.MathUtils.lerp(encounterApproachStartZ, encounterStopZ, approachProgressRef.current);
-        const groundY = Math.sqrt(planetRadius * planetRadius - groundZ * groundZ);
-        encounterRootGroup.position.set(0, groundY - planetRadius, groundZ);
-        surfaceNormal.set(0, groundY, groundZ).normalize();
-        encounterRootGroup.quaternion.setFromUnitVectors(surfaceUp, surfaceNormal);
+      // Plants and ruins retreat into the ground where the colossus stands.
+      ecology.setClearing(
+        encounterShownType ? encounterAnchor : null,
+        encounterShownType ? encounterClearRadius[encounterShownType] ?? 0.4 : 0
+      );
+      ecology.update(dt, elapsed);
 
+      // Gift Trajectory
+      if (encounterActiveRef.current && encounterTypeRef.current) {
         // Reactive Red Object & Sweep Light Animation
         if (giftOfferedRef.current === true && !isDraggingRed) {
           if (!sweepActive && redObjectGroup.visible) {
@@ -1626,8 +1963,6 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           groundRingMat.opacity = THREE.MathUtils.lerp(groundRingMat.opacity, 0, 0.1);
           redCoreMat.emissiveIntensity = 1.6 + Math.sin(elapsed * 2.5) * 0.5;
         }
-
-        encounterRootGroup.visible = false;
       }
 
       // Re-enable Red Gift for next stage or reset (tucked inside backpack)
@@ -1638,28 +1973,30 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         redTargetPos.copy(backpackOffset);
       }
 
-      // Update Sweep Light (扫光) on Tarot Object
+      // Update gift offering on the colossus surface (扫光 shader)
+      const offerU = giftOffering.uniforms;
+      offerU.uOfferTime.value = elapsed;
+      encounterRootGroup.updateWorldMatrix(true, false);
+      offerU.uOfferRootInverse.value.copy(encounterRootGroup.matrixWorld).invert();
+      offerU.uOfferPrime.value = THREE.MathUtils.lerp(offerU.uOfferPrime.value, offerPrimeTarget, 0.12);
       if (sweepActive) {
-        sweepProgress += dt / sweepDuration;
-        const curY = THREE.MathUtils.lerp(0, 48, sweepProgress);
-        sweepLightGroup.position.y = curY;
-
-        const ringScale = 0.8 + Math.sin(sweepProgress * Math.PI) * 1.8;
-        sweepRingMesh.scale.set(ringScale, ringScale, 1);
-        sweepCylMesh.scale.set(ringScale, 1, ringScale);
-
-        const alpha = Math.sin(sweepProgress * Math.PI);
-        sweepRingMat.opacity = alpha * 0.95;
-        sweepCylMat.opacity = alpha * 0.85;
-        sweepPointLight.intensity = alpha * 24.0;
-        sweepPointLight.position.y = 0;
-
-        if (sweepProgress >= 1.0) {
+        sweepProgress = Math.min(1, sweepProgress + dt / sweepDuration);
+        // Ease-out climb: surges up the base, then settles into the crown.
+        const climb = 1 - Math.pow(1 - sweepProgress, 2.2);
+        offerU.uOfferFront.value = THREE.MathUtils.lerp(-2, monumentTop + 6, climb);
+        offerU.uOfferSweep.value = Math.min(1, sweepProgress * 6) * (1 - THREE.MathUtils.smoothstep(sweepProgress, 0.82, 1));
+        offerU.uOfferInfuse.value = Math.min(1, sweepProgress * 3);
+        sweepPointLight.position.y = Math.min(offerU.uOfferFront.value, monumentTop);
+        sweepPointLight.intensity = offerU.uOfferSweep.value * 120;
+        if (sweepProgress >= 1) {
           sweepActive = false;
-          sweepRingMat.opacity = 0;
-          sweepCylMat.opacity = 0;
+          offerU.uOfferSweep.value = 0;
           sweepPointLight.intensity = 0;
         }
+      } else if (!encounterShownType) {
+        // Fade the infusion out once the colossus has sunk.
+        offerU.uOfferInfuse.value = THREE.MathUtils.lerp(offerU.uOfferInfuse.value, 0, 0.06);
+        if (offerU.uOfferInfuse.value < 0.01) offerU.uOfferFront.value = -10;
       }
 
       // Update Crimson Burst Sparks
@@ -1690,8 +2027,21 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           if (item.isSelected) {
             item.spinProgress += dt * 5.2;
             item.group.rotation.y = item.initialRot.y + item.spinProgress * Math.PI * 2;
-            item.group.position.lerp(new THREE.Vector3(0, 8.6, 2.5), 0.08);
-            item.group.scale.lerp(new THREE.Vector3(1.15, 1.15, 1.15), 0.08);
+            const flightProgress = THREE.MathUtils.smoothstep(Math.min(item.spinProgress / 5.2, 1), 0, 1);
+            const target = getCardSlotWorldTarget();
+            item.group.position.lerp(target, 0.06 + flightProgress * 0.04);
+            const vanishProgress = THREE.MathUtils.smoothstep(Math.max(0, (flightProgress - 0.68) / 0.32), 0, 1);
+            const selectedScale = THREE.MathUtils.lerp(1.0, 0.02, flightProgress);
+            item.group.scale.lerp(new THREE.Vector3(selectedScale, selectedScale, selectedScale), 0.08);
+            const cardOpacity = 1 - vanishProgress;
+            const cardMaterials = Array.isArray(item.mesh.material) ? item.mesh.material : [item.mesh.material];
+            cardMaterials.forEach((material) => {
+              const cardMaterial = material as THREE.MeshStandardMaterial;
+              cardMaterial.transparent = true;
+              cardMaterial.opacity = cardOpacity;
+            });
+            (item.borderLines.material as THREE.LineBasicMaterial).opacity = cardOpacity;
+            item.hitbox.visible = cardOpacity > 0.05;
           } else if (anyCardSelected) {
             item.group.scale.lerp(new THREE.Vector3(0, 0, 0), 0.12);
             item.group.position.y -= dt * 3.0;
@@ -1699,7 +2049,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
             const bob = Math.sin(elapsed * 2.2 + item.index * 1.4) * 0.12;
             if (item.isHovered) {
               item.targetPos.set(item.initialPos.x, item.initialPos.y + bob, item.initialPos.z + 1.8);
-              item.targetRot.set(0, 0, 0);
+              item.targetRot.set(0, 0, item.initialRot.z);
               item.targetScale = 1.08;
               (item.borderLines.material as THREE.LineBasicMaterial).color.setHex(0xfff0aa);
               (item.borderLines.material as THREE.LineBasicMaterial).opacity = 1.0;
@@ -1729,14 +2079,24 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         // Distant panoramic celestial view (远景) when choosing cards in the sky
         targetCam.set(mouse.x * 2.0, 9.8 + mouse.y * 1.5, 22.0);
         lookTarget.set(0, 8.4, 0);
-      } else if (gamePhaseRef.current === 'approaching') {
-        // Zoomed-in tracking camera (拉进镜头) following duo strides toward entity
-        targetCam.set(11 + mouse.x, 8 + mouse.y * 0.4, 40 / Math.min(1, camera.aspect));
-        lookTarget.set(0, 18, -15);
-      } else if (gamePhaseRef.current === 'encounter_decision') {
-        // Intimate framing for scene interaction: duo, red gift, and entity
-        targetCam.set(10 + mouse.x * 0.6, 6 + mouse.y * 0.3, 38 / Math.min(1, camera.aspect));
-        lookTarget.set(0, 19, -13);
+      } else if (gamePhaseRef.current === 'approaching' || gamePhaseRef.current === 'encounter_decision') {
+        // Crane up and back (拉远+升高) as the colossus rises, so the duo and
+        // the whole monument share the frame for the gift.
+        const aspectFit = 1 / Math.min(1, camera.aspect);
+        const pullBack = gamePhaseRef.current === 'encounter_decision'
+          ? 1
+          : THREE.MathUtils.smoothstep(legProgress, 0.15, 0.9);
+        targetCam.set(
+          THREE.MathUtils.lerp(9, 18, pullBack) + mouse.x * 0.8,
+          THREE.MathUtils.lerp(8, 26, pullBack) + mouse.y * 0.4,
+          THREE.MathUtils.lerp(30, 62, pullBack) * aspectFit
+        );
+        lookTarget.set(0, THREE.MathUtils.lerp(9, 14, pullBack), THREE.MathUtils.lerp(-6, -14, pullBack));
+      } else if (gamePhaseRef.current === 'homecoming' || gamePhaseRef.current === 'final_reading') {
+        // High orbit to watch the planet turn as the duo closes the lap.
+        const aspectFit = 1 / Math.min(1, camera.aspect);
+        targetCam.set(26 + mouse.x * 1.5, 52 + mouse.y, 66 * aspectFit);
+        lookTarget.set(0, -6, -8);
       } else if (viewRef.current === 'cinematic') {
         // Ultra-distant deep-space panoramic vantage
         targetCam.set(18.0 + mouse.x * 2.5, 14.5 + mouse.y * 1.8, 45.0);
@@ -1757,7 +2117,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       // Procedural Walking Cycles
       if (speedMult > 0.05) {
         // Audio Step trigger
-        const stepInterval = 0.52 / speedMult;
+        const stepInterval = Math.max(0.2, 0.52 / speedMult);
         if (elapsed - lastStepTime > stepInterval) {
           lastStepTime = elapsed;
           audioService.playHoofStep(Math.random() > 0.4);
@@ -1887,6 +2247,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       starShaderMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 2);
+      ecology.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     };
 
     const resizeObserver = new ResizeObserver(handleResize);

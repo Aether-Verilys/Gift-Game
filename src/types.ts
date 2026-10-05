@@ -16,6 +16,7 @@ export type CardSymbol =
 export interface EncounterData {
   id: string;
   name: string;
+  nameEn: string;
   theme: string;
   prompt: string;
   type:
@@ -48,6 +49,8 @@ export interface TarotCardDef {
   archetype: 'light' | 'void' | 'fate' | 'empathy' | 'creation' | 'journey';
   symbol: CardSymbol;
   encounter: EncounterData;
+  /** Orientation assigned when this card is drawn into the current spread. */
+  drawnOrientation?: 'upright' | 'reversed';
 }
 
 // Alias for TarotCardDef
@@ -77,6 +80,7 @@ export type GamePhase =
   | 'approaching'              // 角色走过去
   | 'encounter_decision'        // 遇到那个东西，把红色礼物给它或者不给
   | 'card_resolution'          // 给予礼物翻转塔罗的顺位或逆位
+  | 'homecoming'               // 三次相遇后继续走完星球一圈，回到起点
   | 'final_reading';           // 三次重复结束后，LLM生成具象比喻解读
 
 export type WalkPace = 'pause' | 'walk' | 'trot';

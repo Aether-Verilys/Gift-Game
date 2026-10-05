@@ -4,6 +4,7 @@ import { TarotCardDef } from '../types';
 import { TarotSymbol } from './TarotSvgSymbols';
 import { audioService } from '../services/audioService';
 import { Gift, Shield, Sparkles, ArrowRight } from 'lucide-react';
+import { tarotGiftReaction } from '../i18n';
 
 interface EncounterDecisionModalProps {
   card: TarotCardDef;
@@ -54,10 +55,12 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
   };
 
   const orientation = decisionMade === true ? 'reversed' : 'upright';
-  const reactionText =
-    decisionMade === true
-      ? card.encounter.giftReactionOffered
-      : card.encounter.giftReactionKept;
+  const reactionText = tarotGiftReaction(
+    'zh',
+    card.id,
+    decisionMade === true,
+    decisionMade === true ? card.encounter.giftReactionOffered : card.encounter.giftReactionKept,
+  );
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md select-none pointer-events-auto">
@@ -172,7 +175,7 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
                 </div>
                 <div>
                   <div className="text-xs sm:text-sm font-artistic text-white group-hover:text-red-100 font-medium">
-                    献出红色礼物（翻转为逆位）
+                    献出礼物（翻转为逆位）
                   </div>
                   <div className="text-[10px] sm:text-[11px] font-artistic text-red-200/60">
                     将心火与体温交付于它，促使卡牌翻转共鸣
