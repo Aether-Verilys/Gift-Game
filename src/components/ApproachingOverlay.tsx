@@ -1,13 +1,12 @@
 import React from 'react';
+import { StoryBanner } from './StoryBanner';
 import { motion, AnimatePresence } from 'motion/react';
 import { TarotCardDef } from '../types';
-import { Compass, Sparkles } from 'lucide-react';
 import { Language, copy, stageCopy } from '../i18n';
 
 interface ApproachingOverlayProps {
   card: TarotCardDef | null;
   stage: number;
-  onArrive: () => void;
   isVisible: boolean;
   language: Language;
 }
@@ -15,22 +14,20 @@ interface ApproachingOverlayProps {
 export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
   card,
   stage,
-  onArrive,
   isVisible,
   language,
 }) => {
-  if (!isVisible || !card) return null;
 
   return (
     <AnimatePresence>
-      <motion.div
+      {isVisible && card && <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.5 }}
-        className="absolute top-24 sm:top-28 left-1/2 -translate-x-1/2 z-40 pointer-events-auto text-center"
+        transition={{ duration: 1 }}
+        className="absolute top-24 sm:top-28 left-1/2 -translate-x-1/2 z-40 pointer-events-none text-center"
       >
-        <div className="py-2.5 px-6 rounded-full bg-black/60 border border-white/20 backdrop-blur-md text-white/90 shadow-[0_8px_32px_rgba(0,0,0,0.85)] flex flex-col sm:flex-row items-center gap-3">
+        <StoryBanner className="flex flex-col sm:flex-row items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#ff3355] animate-pulse" />
             <span className="text-xs font-garamond tracking-[0.14em] uppercase text-white/50">
@@ -43,16 +40,9 @@ export const ApproachingOverlay: React.FC<ApproachingOverlayProps> = ({
             <span className="text-white text-glow-sm font-medium">{copy[language].almostThere}</span>
           </div>
 
-          <button
-            onClick={onArrive}
-            className="group relative ml-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 border border-white/20 text-[11px] font-artistic tracking-wider text-white transition-all cursor-pointer flex items-center gap-1.5"
-            title={copy[language].arrive}
-          >
-            <Sparkles className="w-3 h-3 text-white/70 group-hover:text-white" />
-            <span>{copy[language].arrive}</span>
-          </button>
-        </div>
-      </motion.div>
+
+        </StoryBanner>
+      </motion.div>}
     </AnimatePresence>
   );
 };

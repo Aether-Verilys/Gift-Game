@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TarotCardInfo } from '../types';
-import { TarotSymbol } from './TarotSvgSymbols';
+import { TarotArtwork as TarotSymbol } from './TarotArtwork';
 
 interface NarrationOverlayProps {
   narration: string | null;

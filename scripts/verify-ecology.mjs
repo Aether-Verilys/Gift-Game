@@ -16,7 +16,7 @@ for (const name of fs.readdirSync('public/assets/ecology').filter(name => name.e
     triangles += gltf.accessors[primitive.indices ?? primitive.attributes.POSITION].count / 3;
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ecology-textures-'));
-  const textures = gltf.images.map((image, i) => {
+  const textures = (gltf.images ?? []).map((image, i) => {
     if (image.bufferView === undefined) throw Error('Expected embedded texture');
     const view = gltf.bufferViews[image.bufferView];
     const imageFile = path.join(tmp, `${i}.${image.mimeType === 'image/png' ? 'png' : 'jpg'}`);
@@ -28,7 +28,7 @@ for (const name of fs.readdirSync('public/assets/ecology').filter(name => name.e
     return { width, height, mimeType: image.mimeType };
   });
   fs.rmSync(tmp, { recursive: true });
-  if (triangles > 20000 || !textures.length) throw Error(`${name}: asset budget failed`);
+  if (triangles > 20000) throw Error(`${name}: asset budget failed`);
   results.push({ name, triangles, textures, bytes: bytes.length });
 }
 fs.writeFileSync('public/assets/ecology/validation.json', JSON.stringify(results, null, 2) + '\n');

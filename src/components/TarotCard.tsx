@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Choice } from '../types';
-import { TarotSymbol } from './TarotSvgSymbols';
+import { TarotArtwork as TarotSymbol } from './TarotArtwork';
 
 interface TarotCardProps {
   choice: Choice;
@@ -53,6 +53,8 @@ export const TarotCard: React.FC<TarotCardProps> = ({
 
       {/* Card Body */}
       <div className="relative w-full h-full bg-[#0a0a0f]/95 backdrop-blur-md rounded-[2px] border border-white/15 group-hover:border-white/40 flex flex-col justify-between p-3.5 sm:p-4 overflow-hidden transition-colors duration-300 shadow-[0_12px_36px_rgba(0,0,0,0.85)]">
+        <div className="absolute inset-0 pointer-events-none"><TarotSymbol symbol={tarot.symbol} /></div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/60 via-transparent to-black/85" />
         {/* Subtle Sweeping Foil Light Streak on Hover */}
         <div className="absolute -inset-full bg-gradient-to-tr from-transparent via-white/8 to-transparent rotate-45 pointer-events-none group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
 
@@ -70,15 +72,6 @@ export const TarotCard: React.FC<TarotCardProps> = ({
           </div>
           <div className="font-['Cinzel',serif] text-sm sm:text-base font-semibold tracking-[0.18em] text-white/85 group-hover:text-white group-hover:text-glow-sm transition-all">
             {tarot.numeral}
-          </div>
-        </div>
-
-        {/* Center: Sacred Geometry Tarot Linework Illustration */}
-        <div className="relative z-10 my-auto flex items-center justify-center py-2">
-          <div className="relative w-20 sm:w-24 md:w-28 h-20 sm:h-24 md:h-28 text-white/70 group-hover:text-white transition-all duration-500 group-hover:scale-105">
-            {/* Luminous aura behind symbol */}
-            <div className="absolute inset-0 rounded-full bg-white/5 blur-md group-hover:bg-white/10 transition-colors" />
-            <TarotSymbol symbol={tarot.symbol} />
           </div>
         </div>
 

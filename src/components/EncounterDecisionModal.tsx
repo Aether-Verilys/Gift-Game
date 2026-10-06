@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TarotCardDef } from '../types';
-import { TarotSymbol } from './TarotSvgSymbols';
+import { TarotArtwork as TarotSymbol } from './TarotArtwork';
 import { audioService } from '../services/audioService';
 import { Gift, Shield, Sparkles, ArrowRight } from 'lucide-react';
 import { tarotGiftReaction } from '../i18n';

@@ -1,0 +1,175 @@
+{
+  "model": "P2-20260801",
+  "texture_size": 1024,
+  "assets": [
+    {
+      "id": "silver-grass",
+      "title": "银叶草丛",
+      "faces": 3500,
+      "prompt": "One small low tuft of nine broad tapered grass blades radiating from a compact natural root. Gracefully curved blades of different heights, thick solid leaves suitable for low polygon game geometry, dark sage gray surfaces with pale silver edges, simple clean shapes, no flowers, no pot, no ground patch. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game prop, restrained charcoal and silver palette, clearly readable silhouette, complete isolated object, no background objects, no text, no display stand.",
+      "generation_task": "94e29047-a842-428d-bace-2a803d255bcb",
+      "conversion_task": "bd0635ea-8888-4a76-accc-8446a35dd84e",
+      "credits": 120,
+      "validation": {
+        "name": "silver-grass",
+        "triangles": 3494,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 693296
+      },
+      "sha256": "2bc3e9fcfe4077db6bf9b8ebe678e98345799d0ba930b95f9e7c0c61a8c7fe16"
+    },
+    {
+      "id": "crystal-spire",
+      "title": "月晶尖塔",
+      "faces": 10000,
+      "prompt": "One monumental natural mineral spire formed by a tall six-sided smoky quartz crystal with a pointed tip, two smaller crystals fused at the foot, dark graphite opaque crystal faces, pale icy silver edges and subtle lavender mineral seams, sharply faceted silhouette, broad natural rock footing, no plant stems, no surrounding terrain. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game prop, restrained charcoal and silver palette, clearly readable silhouette, complete isolated object, no background objects, no text, no display stand.",
+      "generation_task": "5754fd1b-6b3c-4f14-ac3c-b1727593e83e",
+      "conversion_task": "ae3fc4ed-19b4-4849-8217-182bc140ac1f",
+      "credits": 120,
+      "validation": {
+        "name": "crystal-spire",
+        "triangles": 11166,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1067120
+      },
+      "sha256": "bc7bdf970a29b1083107495401ced5db35588a152be4884c827c2b2c4649e43b"
+    },
+    {
+      "id": "weathered-obelisk",
+      "title": "星纹方尖碑",
+      "faces": 13000,
+      "prompt": "One tall slender ancient four-sided stone obelisk with a pyramidal pointed top, rectangular tapering shaft, shallow geometric celestial engravings, weathered dark basalt and worn ivory edge chips, a single low square stone footing integrated with the monument, narrow upright silhouette, no writing, no floating elements. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game prop, restrained charcoal and silver palette, clearly readable silhouette, complete isolated object, no background objects, no text, no display stand.",
+      "generation_task": "c0fd37da-8904-49fd-b4ac-107e4af5d364",
+      "conversion_task": "e498f371-f995-4955-add9-e2e16911b4af",
+      "credits": 120,
+      "validation": {
+        "name": "weathered-obelisk",
+        "triangles": 11198,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1270388
+      },
+      "sha256": "f5f081d422e8cc8278c094a1c86bfe166f8f06202f7dcc9c375df3763a027060"
+    },
+    {
+      "id": "broken-colonnade",
+      "title": "残星柱廊",
+      "faces": 16000,
+      "prompt": "One compact ruined colonnade with three fluted stone columns of unequal heights in a row, one surviving horizontal lintel bridging the two tallest columns, one fallen column drum at their feet, ancient eroded dark gray limestone with worn silver edges, open gaps between columns, clear structural silhouette, small individual square footings, no surrounding landscape. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game prop, restrained charcoal and silver palette, clearly readable silhouette, complete isolated object, no background objects, no text, no display stand.",
+      "generation_task": "7a4ecac3-6f14-42ed-9640-2cd642436d2a",
+      "conversion_task": "3360c6d0-4c51-4e3c-9938-815a7cdfa685",
+      "credits": 120,
+      "validation": {
+        "name": "broken-colonnade",
+        "triangles": 14045,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1575184
+      },
+      "sha256": "2f60eb9c0bb2e05788ca8e2683ea20a8e03fbb96d14bc8244557be50eabef6ff"
+    },
+    {
+      "id": "ancient-astrolabe",
+      "title": "古代星盘",
+      "faces": 16000,
+      "prompt": "One ancient weathered armillary sphere instrument with three thick intersecting continuous metal rings around a small central celestial orb, readable generous open spaces between rings, dark aged silver with restrained tarnished bronze edge accents, subtle etched celestial tick marks, tilted rings fixed to a low compact stone socket so the instrument stands upright, robust solid construction, no thin wires, no text. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game prop, restrained charcoal and silver palette, clearly readable silhouette, complete isolated object, no background objects, no text, no display stand.",
+      "generation_task": "7b7c759c-0c22-4a46-b887-ff6fc9cb35ae",
+      "conversion_task": "69f70c10-a0f7-4717-ae29-0b3e6f642aac",
+      "credits": 120,
+      "validation": {
+        "name": "ancient-astrolabe",
+        "triangles": 14543,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1288268
+      },
+      "sha256": "7ae18fa23604ce1dbed02ab8bf83b6a473bc436e7ab3d9b2de60fee667555fd6"
+    }
+  ],
+  "credits_total": 600,
+  "scene_integrated": true,
+  "scene_integration": {
+    "silver-grass": "280 existing instances; GPU vertex wind, fixed roots, 0.7 height / 0.85 width cap",
+    "crystal-spire": "7 existing crystal landmark anchors; base aligned with planet surface",
+    "broken-colonnade": "3 matching ruin roots; original clearing / sink behavior preserved",
+    "ancient-astrolabe": "2 matching ruin roots; base partly buried, clearing preserved",
+    "weathered-obelisk": "2 matching ruin roots; original clearing / sink behavior preserved"
+  }
+}

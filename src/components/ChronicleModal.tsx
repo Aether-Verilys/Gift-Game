@@ -1,7 +1,8 @@
 import React from 'react';
+import { audioService } from '../services/audioService';
 import { X, Feather, Compass, Heart, Sparkles, Moon, Gift, Shield } from 'lucide-react';
 import { ChronicleEntry, PlayerStats } from '../types';
-import { TarotSymbol } from './TarotSvgSymbols';
+import { TarotArtwork as TarotSymbol } from './TarotArtwork';
 import { Language, copy, interpolate, stageCopy, tarotGiftReaction, tarotName } from '../i18n';
 
 interface ChronicleModalProps {
@@ -39,7 +40,7 @@ export const ChronicleModal: React.FC<ChronicleModalProps> = ({
           </div>
           <button
             id="close-chronicle-btn"
-            onClick={onClose}
+            onClick={() => { audioService.playUIClick(); onClose(); }}
             className="p-1.5 text-white/45 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -145,18 +146,22 @@ export const ChronicleModal: React.FC<ChronicleModalProps> = ({
           )}
         </div>
 
-        <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-4">
+        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="text-[10px] leading-relaxed text-white/45">
-            <span>{language === 'zh' ? '音乐：' : 'Music: '}</span>
+            <span>{t.creditsMusic}</span>
             <a className="underline hover:text-white" href="https://opengameart.org/content/space-ambient" target="_blank" rel="noreferrer">Space ambient — Osmic</a>
             {' · '}<a className="underline hover:text-white" href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>
             <br />
-            <span>{language === 'zh' ? '音效：Kenney（CC0） · ' : 'SFX: Kenney (CC0) · '}</span>
-            <a className="underline hover:text-white" href={`${import.meta.env.BASE_URL}assets/audio/CREDITS.md`} target="_blank" rel="noreferrer">{language === 'zh' ? '完整音频署名' : 'Full audio credits'}</a>
+            <span>{t.creditsSfx}</span>
+            <a className="underline hover:text-white" href={`${import.meta.env.BASE_URL}assets/audio/CREDITS.md`} target="_blank" rel="noreferrer">{t.creditsAudio}</a>
+            <div className="mt-2">
+              <span>{t.creditsTarot}</span>
+              <a className="underline hover:text-white" href="https://www.angelarium.net/tarot" target="_blank" rel="noreferrer">Angelarium Tarot</a>
+            </div>
           </div>
           <button
             id="close-chronicle-bottom-btn"
-            onClick={onClose}
+            onClick={() => { audioService.playUIClick(); onClose(); }}
             className="group relative text-xs font-artistic tracking-[0.1em] text-white/50 hover:text-white py-1.5 px-3 transition-colors cursor-pointer"
           >
             <span>{t.closeChronicle}</span>

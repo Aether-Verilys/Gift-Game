@@ -12,8 +12,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'fool',
     encounter: {
       id: 'enc_seedling',
-      name: '原初的蓝色幼苗',
-      nameEn: 'Primordial Blue Seedling',
+      name: '愚者',
+      nameEn: 'THE FOOL',
       theme: '初始与摇篮',
       prompt: '在冰冷星尘的裂隙中，一株散发着地球蓝光的脆弱幼苗正静默舒展。',
       type: 'seedling',
@@ -33,8 +33,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'watcher',
     encounter: {
       id: 'enc_archive_tome',
-      name: '悬浮的时空石卷',
-      nameEn: 'Suspended Chronicle of Time',
+      name: '女祭司',
+      nameEn: 'THE PRIESTESS',
       theme: '直觉与隐秘',
       prompt: '一本由凝固光子构筑的古籍悬停空中，无数透明文字在虚空中游弋流转。',
       type: 'priestess',
@@ -54,8 +54,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'monolith',
     encounter: {
       id: 'enc_hypercube',
-      name: '自旋的高维超正方体',
-      nameEn: 'Spinning Hypercube',
+      name: '皇帝',
+      nameEn: 'THE EMPEROR',
       theme: '秩序与边界',
       prompt: '一座绝对对称的四维几何超立方体正在虚空中以精准的数学节奏无声自旋。',
       type: 'emperor',
@@ -75,8 +75,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'beacon',
     encounter: {
       id: 'enc_beacon_spire',
-      name: '星球上的巨像教皇',
-      nameEn: 'Colossal Hierophant',
+      name: '教皇',
+      nameEn: 'THE HIEROPHANT',
       theme: '誓约与传统',
       prompt: '巨大的教皇立于星球地表，三重冠冕没入星光，长袍垂落如山壁。旅者与白马停在权杖投下的阴影里。',
       type: 'hierophant',
@@ -96,8 +96,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'lovers',
     encounter: {
       id: 'enc_twin_core',
-      name: '双生互绕的共鸣星核',
-      nameEn: 'Twin Resonant Cores',
+      name: '恋人',
+      nameEn: 'THE LOVERS',
       theme: '陪伴与契约',
       prompt: '两颗微缩星核在磁力线上互相环绕起舞，如同一对永不分开的星辰舞者。',
       type: 'twin_core',
@@ -117,8 +117,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'chariot',
     encounter: {
       id: 'enc_gravity_bridge',
-      name: '失重裂谷的星桥悬索',
-      nameEn: 'Starbridge Over the Rift',
+      name: '战车',
+      nameEn: 'THE CHARIOT',
       theme: '勇气与决断',
       prompt: '深不见底的引力裂谷横亘在眼前，仅有一道由细微光子绷紧的悬索通向对岸。',
       type: 'chariot',
@@ -138,8 +138,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'hermit',
     encounter: {
       id: 'enc_solitary_lantern',
-      name: '虚空灯塔守望者',
-      nameEn: 'Void Lantern Watcher',
+      name: '隐士',
+      nameEn: 'THE HERMIT',
       theme: '内省与沉静',
       prompt: '一盏悬挂于极低空中的磨砂黑曜石提灯，内部微弱地燃烧着一星恒古火苗。',
       type: 'lantern',
@@ -159,8 +159,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'rings',
     encounter: {
       id: 'enc_astrolabe',
-      name: '青铜与玄冰星轨天象仪',
-      nameEn: 'Bronze Ice Astrolabe',
+      name: '命运之轮',
+      nameEn: 'WHEEL OF FORTUNE',
       theme: '时运与自处',
       prompt: '一座巨大的多层环形天象仪在平原上徐徐啮合运转，齿轮之间流泻着冰晶与恒星风。',
       type: 'astrolabe',
@@ -180,8 +180,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'prism',
     encounter: {
       id: 'enc_shattered_prism',
-      name: '倾颓的时空棱镜尖峰',
-      nameEn: 'Shattered Prism Spire',
+      name: '高塔',
+      nameEn: 'THE TOWER',
       theme: '破立与重塑',
       prompt: '一片巨大的反光镜群在地面上碎裂成千百块镜片，每一面镜片都折射着截然不同的平行世界。',
       type: 'prism',
@@ -201,8 +201,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'star',
     encounter: {
       id: 'enc_hesitation_spring',
-      name: '失重液态星光泉',
-      nameEn: 'Weightless Starlight Spring',
+      name: '星辰',
+      nameEn: 'THE STAR',
       theme: '希望与自愈',
       prompt: '一汪无重力悬浮的银色流体清泉，正轻柔地泛起涟漪，洗涤着周围的宇宙尘埃。',
       type: 'spring',
@@ -222,8 +222,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'sun',
     encounter: {
       id: 'enc_dawn_hearth',
-      name: '初生恒星的温室火炉',
-      nameEn: 'Newborn Solar Hearth',
+      name: '太阳',
+      nameEn: 'THE SUN',
       theme: '新生与炽热',
       prompt: '一颗刚诞生的微型脉冲太阳悬在地面三尺之上，散发着麦浪与烘烤般的纯白暖意。',
       type: 'sun',
@@ -243,8 +243,8 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
     symbol: 'world',
     encounter: {
       id: 'enc_ouroboros_gate',
-      name: '回旋衔尾蛇星环门',
-      nameEn: 'Ouroboros Gateway',
+      name: '世界',
+      nameEn: 'THE WORLD',
       theme: '圆满与新生',
       prompt: '一道由咬尾星蛇构成的发光巨拱耸立在天地尽头，拱门背后是一片重新呼吸的崭新星云。',
       type: 'gateway',
@@ -255,12 +255,12 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
   }
 ];
 
-// Draw one card for a stage. The player decides whether to open this card;
-// there is no longer a three-card spread to choose between.
+// Draw a three-card spread for a stage. The player opens one card; the other
+// two dissolve away in the 3D scene after the choice.
 export function drawOneCard(excludedIds: string[] = []): TarotCardDef[] {
   const available = ALL_TAROT_CARDS.filter((c) => !excludedIds.includes(c.id));
   const shuffled = [...available].sort(() => 0.5 - Math.random());
-  const drawn = shuffled.slice(0, 1).map((card) => ({
+  const drawn = shuffled.slice(0, 3).map((card) => ({
     ...card,
     drawnOrientation: Math.random() < 0.45 ? ('reversed' as const) : ('upright' as const),
   }));

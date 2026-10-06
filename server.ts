@@ -43,8 +43,29 @@ interface StageRecord {
 }
 
 // Fallback poetic generator in case API key is missing or service unavailable
-function deriveFocusSituation(history: StageRecord[]) {
+type ReadingLanguage = 'zh' | 'en';
+
+function deriveFocusSituation(history: StageRecord[], language: ReadingLanguage = 'zh') {
   const first = history[0];
+  if (language === 'en') {
+    if (!first) return 'the choice and direction taking shape now';
+    const themes: Record<string, string> = {
+      'THE FOOL': 'whether to take a first step into the unknown, and how to meet it',
+      'THE PRIESTESS': 'how to trust intuition while handling what has not been said',
+      'THE EMPEROR': 'how to build boundaries, order, and sustainable control',
+      'THE HIEROPHANT': 'how to choose between inherited rules and your own path',
+      'THE LOVERS': 'closeness, commitment, and autonomy within a relationship',
+      'THE CHARIOT': 'how to decide and act under pressure and uncertainty',
+      'THE HERMIT': 'how to be alone, sort inner needs, and hear your own judgment',
+      'WHEEL OF FORTUNE': 'how to meet change, timing, and what cannot be controlled',
+      'THE TOWER': 'how to handle a loosening structure, conflict, or sudden change',
+      'THE STAR': 'how to restore hope and turn a wish into a direction in reality',
+      'THE MOON': 'how to tell anxiety, imagination, and real signals apart',
+      'THE SUN': 'how to let yourself be seen and name the life you truly want',
+      'THE WORLD': 'how to complete one chapter and choose where to go next',
+    };
+    return themes[first.card.nameEn] || `the choice, relationship, and self-positioning reflected by ${first.card.nameEn}`;
+  }
   if (!first) return '当下正在形成的选择与方向';
   const themes: Record<string, string> = {
     愚者: '是否迈出新的第一步，以及如何面对未知',
@@ -64,7 +85,29 @@ function deriveFocusSituation(history: StageRecord[]) {
   return themes[first.card.nameZh] || `围绕“${first.card.nameZh}”所展开的选择、关系与自我定位`;
 }
 
-function generatePoeticFallback(history: StageRecord[], focusSituation = deriveFocusSituation(history)) {
+function generatePoeticFallback(
+  history: StageRecord[],
+  focusSituation: string | undefined,
+  language: ReadingLanguage = 'zh',
+) {
+  const resolvedSituation = focusSituation ?? deriveFocusSituation(history, language);
+  if (language === 'en') {
+    const first = history[0];
+    const topic = first ? `the choice and self-positioning reflected by ${first.card.nameEn}` : 'the choice and direction taking shape now';
+    const giftCount = history.filter((h) => h.offeredGift).length;
+    let metaphorTitle = 'A wooden shutter left open in the snowstorm';
+    if (giftCount === 3) metaphorTitle = 'A traveler who lends their warmth to the tide';
+    else if (giftCount === 0) metaphorTitle = 'A night watchman sealing an ember in clay';
+    else if (history[0]?.offeredGift && !history[1]?.offeredGift) metaphorTitle = 'The few seconds of holding your breath underwater';
+    return {
+      metaphorTitle: `${metaphorTitle}: an inner map for ${topic}`,
+      situationReading: `In ${resolvedSituation}, the traveler’s choices show a repeated calibration between moving closer and protecting what matters. The issue may not be a lack of answers; it is the cost of investment, whether a response can be trusted, and which boundaries need to remain.`,
+      psychologicalInsight: 'The traveler may watch risk and the other side’s response before deciding whether to invest. This caution can protect you, but it can also make the desire for certainty feel like a condition for action. The pattern of giving and keeping suggests that the traveler is practicing how to bring the power to decide back from outside feedback.',
+      selfAwareness: 'The traveler may care less about making the perfect choice than about honoring a real need without letting fear decide. Notice whether you are expressing what you want or trying to avoid disappointment in advance.',
+      fallback: true,
+      fallbackReason: 'The reading service is unavailable, so this local fallback reading is being shown.',
+    };
+  }
   const c1 = history[0] || { card: { nameZh: '星辰', numeral: 'ⅩⅦ' }, orientation: 'upright', offeredGift: true };
   const c2 = history[1] || { card: { nameZh: '隐士', numeral: 'Ⅸ' }, orientation: 'reversed', offeredGift: false };
   const c3 = history[2] || { card: { nameZh: '世界', numeral: 'ⅩⅩⅠ' }, orientation: 'upright', offeredGift: true };
@@ -92,8 +135,8 @@ function generatePoeticFallback(history: StageRecord[], focusSituation = deriveF
   const journeyReflection = `第一程抽得【${c1.card.nameZh}】（${c1.orientation === 'upright' ? '顺位' : '逆位'}），旅者选择${c1.offeredGift ? '献出' : '保留'}了红色礼物；第二程遇【${c2.card.nameZh}】（${c2.orientation === 'upright' ? '顺位' : '逆位'}），旅者选择${c2.offeredGift ? '交付' : '收回'}；终程在【${c3.card.nameZh}】前，旅者完成了最后的抉择。每一次给予与保留，都在这片星海深处刻下了独属于你的力场纹理。`;
 
   return {
-    metaphorTitle: `关于“${focusSituation}”的内在地图`,
-    situationReading: `就“${focusSituation}”而言，旅者的选择呈现出一种在靠近与保护之间反复校准的过程。旅者并非缺少答案，而是在评估投入之后的代价、关系是否可靠，以及什么边界必须保留。`,
+    metaphorTitle: `关于“${resolvedSituation}”的内在地图`,
+    situationReading: `就“${resolvedSituation}”而言，旅者的选择呈现出一种在靠近与保护之间反复校准的过程。旅者并非缺少答案，而是在评估投入之后的代价、关系是否可靠，以及什么边界必须保留。`,
     psychologicalInsight: `旅者可能会先观察风险和对方的回应，再决定是否投入。这种谨慎能保护你，也可能让你把等待确定感误当成行动前提。三次给予与保留显示，旅者正在练习把决定权从外部反馈拿回自己手中。`,
     selfAwareness: `旅者真正重视的不是“做对选择”，而是既不背叛自己的需要，也不让恐惧替你做决定。可以留意：你是在表达真实意愿，还是在提前避免失望？`,
     fallback: true,
@@ -103,22 +146,29 @@ function generatePoeticFallback(history: StageRecord[], focusSituation = deriveF
 
 // API endpoint to generate deep metaphorical interpretation
 app.post('/api/interpret', async (req, res) => {
-  const { stageHistory } = req.body as { stageHistory: StageRecord[] };
+  const { stageHistory, language: requestedLanguage } = req.body as {
+    stageHistory: StageRecord[];
+    language?: string;
+  };
+  const language: ReadingLanguage = requestedLanguage === 'en' ? 'en' : 'zh';
 
   if (!stageHistory || !Array.isArray(stageHistory) || stageHistory.length === 0) {
     return res.status(400).json({ error: 'Missing stageHistory data' });
   }
-  const situation = deriveFocusSituation(stageHistory);
+  const situation = deriveFocusSituation(stageHistory, language);
 
   // If no Gemini key is provided, gracefully use the handcrafted poetic engine
   if (!apiKey) {
-    const fallback = generatePoeticFallback(stageHistory, situation);
+    const fallback = generatePoeticFallback(stageHistory, situation, language);
     return res.json(fallback);
   }
 
   try {
     const historySummary = stageHistory
       .map((item, idx) => {
+        if (language === 'en') {
+          return `Choice ${idx + 1}:\n- Tarot drawn: [${item.card.numeral} · ${item.card.nameEn}]\n- Encounter: ${item.encounterName}\n- Red gift: ${item.offeredGift ? '[offered]' : '[kept]'}\n- Final card orientation: [${item.orientation === 'upright' ? 'Upright' : 'Reversed'}]`;
+        }
         return `第${idx + 1}次选择：
 - 抽取塔罗：【${item.card.numeral} · ${item.card.nameZh} (${item.card.nameEn})】
 - 遇到造物：${item.encounterName}
@@ -127,7 +177,27 @@ app.post('/api/interpret', async (req, res) => {
       })
       .join('\n\n');
 
-    const prompt = `你是一位谨慎、温和的心理自我反思引导者。请根据玩家第一张塔罗牌的选择与相遇场景，对他此刻正在面对的核心议题做一个初步定性，再结合三次选择，把结果写成可验证的自我认知，而不是小说、诗歌或命运预言。
+    const prompt = language === 'en'
+      ? `You are a careful, warm guide for psychological self-reflection. Based on the player's first tarot choice and encounter, define the core issue they may be facing, then use all three choices to write grounded self-understanding rather than fiction, poetry, or prophecy.
+
+The initial issue suggested by the first card: ${situation}
+
+Player record:
+${historySummary}
+
+Requirements:
+1. Respond directly to the initial issue. Explain the central tension, possible psychological mechanisms, and how the choice pattern may shape judgment.
+2. Use clear, everyday, non-diagnostic psychological language. Do not classify the player or say they are a fixed type.
+3. Acknowledge uncertainty and separate observations, hypotheses, and facts. Do not treat tarot as scientific evidence.
+4. Do not provide an action plan or task list. Focus on understanding the situation and self-awareness.
+5. Write every value in the JSON in English. Return strict JSON with no markdown:
+{
+  "metaphorTitle": "a concise title for the situation",
+  "situationReading": "a 120-180 word reading of the situation",
+  "psychologicalInsight": "the traveler’s psychological mechanisms and choice pattern (120-180 words)",
+  "selfAwareness": "key psychological clues and self-awareness the traveler can notice (80-140 words)"
+}`
+      : `你是一位谨慎、温和的心理自我反思引导者。请根据玩家第一张塔罗牌的选择与相遇场景，对他此刻正在面对的核心议题做一个初步定性，再结合三次选择，把结果写成可验证的自我认知，而不是小说、诗歌或命运预言。
 
 第一张牌形成的初步议题：${situation}
 
@@ -166,11 +236,11 @@ ${historySummary}
         const parsed = JSON.parse(jsonMatch[0]);
         return res.json(parsed);
       }
-      return res.json(generatePoeticFallback(stageHistory, situation));
+      return res.json(generatePoeticFallback(stageHistory, situation, language));
     }
   } catch (error) {
     console.error('Gemini API call failed, falling back to poetic engine:', error);
-    return res.json(generatePoeticFallback(stageHistory, situation));
+    return res.json(generatePoeticFallback(stageHistory, situation, language));
   }
 });
 

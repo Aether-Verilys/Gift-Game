@@ -1,5 +1,27 @@
 [
   {
+    "name": "ancient-astrolabe",
+    "triangles": 14543,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1288268
+  },
+  {
     "name": "bird",
     "triangles": 18736,
     "textures": [
@@ -22,6 +44,50 @@
     "bytes": 1677952
   },
   {
+    "name": "broken-arch",
+    "triangles": 19924,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1057268
+  },
+  {
+    "name": "broken-colonnade",
+    "triangles": 14045,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1575184
+  },
+  {
     "name": "crystal-reeds",
     "triangles": 11175,
     "textures": [
@@ -42,6 +108,40 @@
       }
     ],
     "bytes": 1142204
+  },
+  {
+    "name": "crystal-spire",
+    "triangles": 13827,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 782884
+  },
+  {
+    "name": "impact-crater",
+    "triangles": 12713,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1198296
   },
   {
     "name": "lantern-plant",
@@ -132,6 +232,72 @@
     "bytes": 1384496
   },
   {
+    "name": "ruined-stair",
+    "triangles": 15694,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1235876
+  },
+  {
+    "name": "sacred-colossus-base",
+    "triangles": 13564,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1719388
+  },
+  {
+    "name": "silver-grass",
+    "triangles": 3494,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 693296
+  },
+  {
     "name": "spiral-fern",
     "triangles": 17127,
     "textures": [
@@ -152,5 +318,137 @@
       }
     ],
     "bytes": 1892796
+  },
+  {
+    "name": "standing-stone-ring",
+    "triangles": 15428,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1310512
+  },
+  {
+    "name": "star-beacon",
+    "triangles": 10041,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 836504
+  },
+  {
+    "name": "surface-monolith",
+    "triangles": 9315,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 774008
+  },
+  {
+    "name": "toppled-statue",
+    "triangles": 12306,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1102664
+  },
+  {
+    "name": "walkable-planet",
+    "triangles": 16854,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1316260
+  },
+  {
+    "name": "weathered-obelisk",
+    "triangles": 11198,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1270388
   }
 ]

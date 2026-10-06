@@ -1,0 +1,67 @@
+{
+  "model": "P2-20260801",
+  "texture_size": 1024,
+  "assets": [
+    {
+      "id": "walkable-planet",
+      "title": "旅途主星球",
+      "faces": 16000,
+      "prompt": "One complete perfectly round spherical rocky planet, a mathematically smooth continuous ball silhouette, equal diameter on all three axes. Low-relief moonlike geology: broad quiet charcoal gray basalt plains, shallow small craters, subtle weathered silver mineral veins and sparse dark gray plate boundaries. Terrain details mostly painted and normal mapped; very shallow relief only, no tall mountains or deep holes. Matte rough stone, diffuse mid gray highlights, restrained monochrome palette. Entire sphere fully visible, seamless terrain across all sides, a solid closed sphere with no cutaway, no rings, no base, no pedestal, no atmosphere shell, no buildings, no plants, no text. Designed as a small walkable world for a mystical cosmic tarot game. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game prop, restrained charcoal and silver palette, clearly readable silhouette, complete isolated object, no background objects, no text, no display stand.",
+      "generation_task": "c1e37a6f-6276-4d31-9d0d-7bf31dce67c6",
+      "conversion_task": "60909c09-3e7c-4237-bab1-5691e49e4bf1",
+      "credits": 120,
+      "validation": {
+        "name": "walkable-planet",
+        "triangles": 16854,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1316260
+      },
+      "sphere_inspection": {
+        "asset": "public/assets/ecology/walkable-planet.glb",
+        "unique_vertices": 8654,
+        "bounds_size": [
+          0.99951171875,
+          0.99755859375,
+          0.99853515625
+        ],
+        "bounds_center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "axis_ratio_max_to_min": 1.0019579050416054,
+        "radial_ratio_to_median": {
+          "min": 0.9022275599398446,
+          "p05": 0.9708122836416938,
+          "p95": 1.0162036968836896,
+          "max": 1.028951238614651
+        },
+        "radial_error_at_world_radius_70": {
+          "min": -6.844070804210878,
+          "max": 2.026586703025577
+        },
+        "method": "Vertex radii from bounding-box center, uniformly scaled so median radius is 70; not a collision or watertightness test.",
+        "scene_integrated": false
+      },
+      "sha256": "6e65efd4d2c567bcab443572180fabb41725ccac8e8617ac7c2f81817354edd1"
+    }
+  ],
+  "scene_integrated": false,
+  "integration_note": "Generated original. At world radius 70, local radial deviations are -6.84 to +2.03 units from median. Project vertices to the walking sphere or resample height for all grounded entities before scene replacement. Vertex inspection is not a watertightness test."
+}

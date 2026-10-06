@@ -21,9 +21,11 @@ import {
   PlayerStats,
 } from './types';
 import { audioService } from './services/audioService';
-import { Language, copy, stageCopy, tarotEncounterName, tarotEncounterPrompt, tarotGiftReaction } from './i18n';
+import { Language, copy, localFallbackReading, stageCopy, tarotEncounterName, tarotEncounterPrompt, tarotGiftReaction } from './i18n';
 
 const TAROT_COLLECTION_KEY = 'gift-game.unlocked-tarot.v1';
+const DECISION_TIME_LIMIT = 20;
+const AUTO_ADVANCE_TIME_LIMIT = 7;
 
 function readUnlockedCards(): string[] {
   try {
@@ -37,18 +39,32 @@ function readUnlockedCards(): string[] {
 }
 
 export default function App() {
-  const createClientFallback = useCallback((history: StageRecord[]): LLMInterpretation => {
-    const first = history[0];
-    const topic = first ? `围绕“${first.card.nameZh}”展开的选择与自我定位` : '当下正在形成的选择与方向';
-    return {
-      metaphorTitle: `关于${topic}的内在地图`,
-      situationReading: `旅者正在靠近与保护之间反复校准。当前议题未必缺少答案，更像是在衡量投入的代价、回应是否可靠，以及哪些边界需要保留。牌面只能提供观察角度，不能替代现实中的事实与决定。`,
-      psychologicalInsight: `旅者可能先观察风险与反馈，再决定是否投入。这种谨慎能带来安全感，也可能让等待确定感变成行动的门槛。三次开启显示，旅者正在练习把判断权从外部回应逐步拿回自己手中。`,
-      selfAwareness: `可以留意：旅者此刻是在表达真实需要，还是在提前避免失望？把这两个动机分开，才能更清楚地理解下一次选择。`,
-      fallback: true,
-      fallbackReason: '解读接口暂时不可用，已使用本地备用解读。',
-    };
+  const createClientFallback = useCallback((history: StageRecord[], lang: Language): LLMInterpretation => {
+    return localFallbackReading(lang, history[0]?.card);
   }, []);
+
+  // Keep the final page localized even when an older server process returns a
+  // fallback in its default language, or when the language is changed while
+  // the reading is already open.
+  const normalizeInterpretation = useCallback((
+    data: LLMInterpretation,
+    history: StageRecord[],
+    lang: Language,
+  ): LLMInterpretation => {
+    const containsChinese = (value: string) => /[\u3400-\u9fff]/.test(value);
+    const hasChineseText = [
+      data.metaphorTitle,
+      data.situationReading,
+      data.psychologicalInsight,
+      data.selfAwareness,
+      data.fallbackReason || '',
+    ].some(containsChinese);
+
+    if (data.fallback || (lang === 'en' && hasChineseText)) {
+      return createClientFallback(history, lang);
+    }
+    return data;
+  }, [createClientFallback]);
 
   // Game progression state (起因 · 经过 · 结果)
   const [currentStage, setCurrentStage] = useState<number>(1);
@@ -72,7 +88,7 @@ export default function App() {
   const [isFallbackReading, setIsFallbackReading] = useState<boolean>(false);
 
   // Controls & Modals
-  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('gift-game.language') as Language) || 'zh');
   const [zenMode, setZenMode] = useState<boolean>(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState<boolean>(false);
@@ -335,11 +351,13 @@ export default function App() {
   );
 
   // 3. Advance to next stage or final LLM reading
-  const handleAdvanceStage = useCallback(() => {
+  const handleAdvanceStage = useCallback((decisionOverride?: { offeredGift: boolean; card: TarotCardDef }) => {
+    const effectiveSelectedCard = decisionOverride?.card ?? selectedCard;
+    const effectiveGiftOffered = decisionOverride?.offeredGift ?? giftOffered;
     if (currentStage < 3) {
       const nextStage = currentStage + 1;
       setCurrentStage(nextStage);
-      const usedIds = stageHistory.map((h) => h.card.id).concat(selectedCard ? [selectedCard.id] : []);
+      const usedIds = stageHistory.map((h) => h.card.id).concat(effectiveSelectedCard ? [effectiveSelectedCard.id] : []);
       setStageCards(drawOneCard(usedIds));
       setSelectedCard(null);
       setGiftOffered(null);
@@ -356,17 +374,17 @@ export default function App() {
       // React state updates are batched: the final gift decision may not have
       // been committed to stageHistory when this callback runs. Include the
       // current stage explicitly so the first play gets a complete reading.
-      const latestRecord = selectedCard && giftOffered !== null
+      const latestRecord = effectiveSelectedCard && effectiveGiftOffered !== null
         ? {
             stage: currentStage,
             stageName: '结果' as const,
-            card: selectedCard,
-            orientation: giftOffered
-              ? ((selectedCard.drawnOrientation ?? 'upright') === 'upright' ? 'reversed' : 'upright')
-              : (selectedCard.drawnOrientation ?? 'upright'),
-            offeredGift: giftOffered,
-            encounterName: tarotEncounterName(language, selectedCard.id, selectedCard.encounter.name),
-            encounterDesc: tarotEncounterPrompt(language, selectedCard.id, selectedCard.encounter.prompt),
+            card: effectiveSelectedCard,
+            orientation: effectiveGiftOffered
+              ? ((effectiveSelectedCard.drawnOrientation ?? 'upright') === 'upright' ? 'reversed' : 'upright')
+              : (effectiveSelectedCard.drawnOrientation ?? 'upright'),
+            offeredGift: effectiveGiftOffered,
+            encounterName: tarotEncounterName(language, effectiveSelectedCard.id, effectiveSelectedCard.encounter.name),
+            encounterDesc: tarotEncounterPrompt(language, effectiveSelectedCard.id, effectiveSelectedCard.encounter.prompt),
           }
         : null;
       const historyByStage = new Map(stageHistory.map((record) => [record.stage, record]));
@@ -377,7 +395,7 @@ export default function App() {
       fetch('/api/interpret', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stageHistory: fullHistory }),
+        body: JSON.stringify({ stageHistory: fullHistory, language }),
       })
         .then(async (res) => {
           const data = await res.json();
@@ -386,20 +404,26 @@ export default function App() {
         })
         .then(async (data: LLMInterpretation) => {
           await minimumReadingDelay;
-          setInterpretation(data);
-          setIsFallbackReading(Boolean(data.fallback));
+          const localizedData = normalizeInterpretation(data, fullHistory, language);
+          setInterpretation(localizedData);
+          setIsFallbackReading(Boolean(localizedData.fallback));
           setIsLlmLoading(false);
           audioService.playChoiceConfirm();
         })
         .catch(async (err) => {
           await minimumReadingDelay;
           console.error('Failed to get interpretation:', err);
-          setInterpretation(createClientFallback(fullHistory));
+          setInterpretation(createClientFallback(fullHistory, language));
           setIsFallbackReading(true);
           setIsLlmLoading(false);
         });
     }
-  }, [currentStage, stageHistory, selectedCard, giftOffered, createClientFallback, language]);
+  }, [currentStage, stageHistory, selectedCard, giftOffered, createClientFallback, language, normalizeInterpretation]);
+
+  const handleKeepAndAdvance = useCallback(() => {
+    if (!selectedCard || giftOffered !== null || giftDecisionLockRef.current) return;
+    handleGiftDecision(false);
+  }, [selectedCard, giftOffered, handleGiftDecision]);
 
   // Closing the planet lap ends the journey and reveals the reading.
   const handleJourneyComplete = useCallback(() => {
@@ -408,15 +432,15 @@ export default function App() {
   }, []);
 
   // Countdown timer for offering gift (时间过了就默认不给)
-  const [decisionTimeLeft, setDecisionTimeLeft] = useState<number>(10);
+  const [decisionTimeLeft, setDecisionTimeLeft] = useState<number>(DECISION_TIME_LIMIT);
   // Auto-advance timer (过了过一段时间也会进入下一阶段)
-  const [autoAdvanceTimeLeft, setAutoAdvanceTimeLeft] = useState<number>(3.5);
+  const [autoAdvanceTimeLeft, setAutoAdvanceTimeLeft] = useState<number>(AUTO_ADVANCE_TIME_LIMIT);
 
   // Decision timer: when in encounter_decision and giftOffered === null
   useEffect(() => {
     if (gamePhase !== 'encounter_decision' || giftOffered !== null) return;
 
-    setDecisionTimeLeft(10);
+    setDecisionTimeLeft(DECISION_TIME_LIMIT);
     const interval = setInterval(() => {
       setDecisionTimeLeft((prev) => {
         if (prev <= 0.15) {
@@ -435,7 +459,7 @@ export default function App() {
   useEffect(() => {
     if (gamePhase !== 'encounter_decision' || giftOffered === null) return;
 
-    setAutoAdvanceTimeLeft(3.5);
+    setAutoAdvanceTimeLeft(AUTO_ADVANCE_TIME_LIMIT);
     const interval = setInterval(() => {
       setAutoAdvanceTimeLeft((prev) => {
         if (prev <= 0.15) {
@@ -464,8 +488,8 @@ export default function App() {
     setIsFallbackReading(false);
     setIsLlmLoading(false);
     setGiftOffered(null);
-    setDecisionTimeLeft(10);
-    setAutoAdvanceTimeLeft(3.5);
+    setDecisionTimeLeft(DECISION_TIME_LIMIT);
+    setAutoAdvanceTimeLeft(AUTO_ADVANCE_TIME_LIMIT);
     setPace('walk');
     setDistance(0);
     setChronicle([]);
@@ -482,6 +506,10 @@ export default function App() {
     2: stageCopy(language, 2),
     3: stageCopy(language, 3),
   };
+  const readingHistory = finalHistory.length ? finalHistory : stageHistory;
+  const localizedInterpretation = interpretation
+    ? normalizeInterpretation(interpretation, readingHistory, language)
+    : null;
 
   return (
     <main
@@ -498,6 +526,7 @@ export default function App() {
         onSelectCard={handleSelectCard}
         encounterActive={gamePhase === 'approaching' || gamePhase === 'encounter_decision'}
         encounterType={selectedCard?.encounter.type || null}
+        encounterCard={selectedCard}
         onApproachArrived={handleArriveImmediately}
         onCardArrived={handleCardArrived}
         giftOffered={giftOffered}
@@ -505,6 +534,7 @@ export default function App() {
         language={language}
         onJourneyComplete={handleJourneyComplete}
       />
+
 
       {/* 2. Top Navigation & Status Bar (Simplified, without pace buttons) */}
       <TopBar
@@ -571,17 +601,6 @@ export default function App() {
         />
       )}
 
-      {/* 4. Phase B: Walking Towards Encounter (选完拉进镜头看场景交互) */}
-      {!zenMode && (
-        <ApproachingOverlay
-          stage={currentStage}
-          card={selectedCard}
-          onArrive={handleArriveImmediately}
-          isVisible={gamePhase === 'approaching'}
-          language={language}
-        />
-      )}
-
       {/* 5. Phase C: In-Scene HUD for Encounter & Red Gift Interaction (结合场景，非大遮罩弹窗) */}
       {!zenMode && selectedCard && (
         <EncounterSceneHUD
@@ -591,19 +610,20 @@ export default function App() {
           decisionTimeLeft={decisionTimeLeft}
           autoAdvanceTimeLeft={autoAdvanceTimeLeft}
           isVisible={gamePhase === 'encounter_decision'}
-          onDecision={handleGiftDecision}
-          onContinue={handleAdvanceStage}
           language={language}
+          onKeepAndAdvance={handleKeepAndAdvance}
         />
       )}
 
       {/* 6. Phase D: Final Metaphorical Reading (LLM生成具象比喻) */}
       <FinalReadingModal
-        history={finalHistory.length ? finalHistory : stageHistory}
-        interpretation={interpretation}
+        history={readingHistory}
+        chronicle={chronicle}
+        stats={stats}
+        distance={distance}
+        interpretation={localizedInterpretation}
         isLoading={isLlmLoading}
         onRestart={handleRestart}
-        onOpenChronicle={() => setIsChronicleOpen(true)}
         isOpen={gamePhase === 'final_reading'}
         isFallback={isFallbackReading}
         language={language}

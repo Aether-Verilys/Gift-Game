@@ -1,7 +1,13 @@
 export type Language = 'zh' | 'en';
 
+import type { LLMInterpretation, TarotCardDef } from './types';
+
 export const copy = {
   zh: {
+    creditsMusic: '音乐：',
+    creditsSfx: '音效：Kenney（CC0） · ',
+    creditsAudio: '完整音频署名',
+    creditsTarot: '塔罗牌设计与插画：',
     origin: '起因之章 · 命运之始',
     passage: '经过之章 · 际遇之行',
     result: '结果之章 · 终局归宿',
@@ -11,7 +17,8 @@ export const copy = {
     encounter: '邂逅',
     give: '交付礼物',
     keep: '保留礼物',
-    drag: '将礼物拖向造物交付',
+    keepShort: '保留',
+    giftFlipsTarot: '交付礼物可反转塔罗朝向',
     newJourney: '开启新的旅途',
     chronicle: '查看旅途手记',
     zen: '进入纯享模式 (H)',
@@ -45,13 +52,13 @@ export const copy = {
     pleaseWait: '请稍候',
     fallbackTitle: '当前显示备用解读',
     fallbackBody: '解读接口暂时不可用，以下内容由本地规则生成。',
-    reflectionLabel: 'SELF-REFLECTION · 事件与自我认知',
     situationLabel: 'SITUATION · 这件事正在发生什么',
     patternLabel: 'PSYCHOLOGICAL PATTERN · 旅者的心理机制',
     awarenessLabel: 'SELF-AWARENESS · 旅者可以看见的自己',
     viewCollection: '查看已解锁塔罗牌',
     collectionTitle: '已解锁塔罗牌',
-    collectionCount: '已收集 {unlocked} / {total} 张 · 每一次选择，都在星海留下印记。',
+    flipCollectionCard: '点击切换顺位 / 逆位',
+    collectionCount: '已收集 {unlocked} / {total} 张 · 点击已解锁卡牌查看顺位与逆位。',
     closeCollection: '关闭塔罗牌册',
     locked: '尚未解锁',
     lockedHint: '在旅途中选择此牌以揭示',
@@ -75,6 +82,10 @@ export const copy = {
     wheelZoom: '(滚轮缩放)',
   },
   en: {
+    creditsMusic: 'Music: ',
+    creditsSfx: 'SFX: Kenney (CC0) · ',
+    creditsAudio: 'Full audio credits',
+    creditsTarot: 'Tarot design & illustrations: ',
     origin: 'ORIGIN · THE BEGINNING',
     passage: 'PASSAGE · THE ENCOUNTER',
     result: 'OUTCOME · THE DESTINY',
@@ -84,7 +95,8 @@ export const copy = {
     encounter: 'Encounter',
     give: 'Offer the gift',
     keep: 'Keep the gift',
-    drag: 'Drag the gift to the entity',
+    keepShort: 'Keep',
+    giftFlipsTarot: 'Offering the gift can reverse the tarot orientation',
     newJourney: 'Begin a new journey',
     chronicle: 'View chronicle',
     zen: 'Enter Zen mode (H)',
@@ -118,13 +130,13 @@ export const copy = {
     pleaseWait: 'Please wait',
     fallbackTitle: 'Showing a local fallback reading',
     fallbackBody: 'The reading service is unavailable, so this reading was generated locally.',
-    reflectionLabel: 'SELF-REFLECTION · EVENT & SELF-AWARENESS',
     situationLabel: 'SITUATION · WHAT IS HAPPENING',
     patternLabel: 'PSYCHOLOGICAL PATTERN · THE TRAVELER’S PATTERN',
     awarenessLabel: 'SELF-AWARENESS · WHAT THE TRAVELER CAN SEE',
     viewCollection: 'View unlocked tarot',
     collectionTitle: 'Unlocked tarot',
-    collectionCount: 'Collected {unlocked} / {total} · Each choice leaves a mark among the stars.',
+    flipCollectionCard: 'Click to switch upright / reversed',
+    collectionCount: 'Collected {unlocked} / {total} · Select an unlocked card to view both orientations.',
     closeCollection: 'Close tarot collection',
     locked: 'Locked',
     lockedHint: 'Choose this card on the journey to reveal it',
@@ -149,6 +161,34 @@ export const copy = {
   },
 } as const;
 
+export function localFallbackReading(language: Language, card?: Pick<TarotCardDef, 'nameEn' | 'nameZh'>): LLMInterpretation {
+  if (language === 'en') {
+    const topic = card?.nameEn
+      ? `the choice and self-positioning reflected by ${card.nameEn}`
+      : 'the choice and direction taking shape now';
+    return {
+      metaphorTitle: `An inner map for ${topic}`,
+      situationReading: 'The traveler is repeatedly calibrating between moving closer and protecting what matters. The question may not be missing an answer; it is weighing the cost of investment, whether a response can be trusted, and which boundaries need to remain. The cards offer a perspective, not a substitute for facts or decisions.',
+      psychologicalInsight: 'The traveler may watch for risk and feedback before deciding whether to invest. That caution can create safety, but it can also turn the wish for certainty into a gate before action. Across three draws, the traveler is practicing how to bring the power to decide back from outside responses.',
+      selfAwareness: 'Notice whether you are expressing a real need or trying to avoid disappointment in advance. Separating those motives makes the next choice easier to understand.',
+      fallback: true,
+      fallbackReason: 'The reading service is unavailable, so this local fallback reading is being shown.',
+    };
+  }
+
+  const topic = card?.nameZh
+    ? `围绕“${card.nameZh}”展开的选择与自我定位`
+    : '当下正在形成的选择与方向';
+  return {
+    metaphorTitle: `关于${topic}的内在地图`,
+    situationReading: '旅者正在靠近与保护之间反复校准。当前议题未必缺少答案，更像是在衡量投入的代价、回应是否可靠，以及哪些边界需要保留。牌面只能提供观察角度，不能替代现实中的事实与决定。',
+    psychologicalInsight: '旅者可能先观察风险与反馈，再决定是否投入。这种谨慎能带来安全感，也可能让等待确定感变成行动的门槛。三次开启显示，旅者正在练习把判断权从外部回应逐步拿回自己手中。',
+    selfAwareness: '可以留意：旅者此刻是在表达真实需要，还是在提前避免失望？把这两个动机分开，才能更清楚地理解下一次选择。',
+    fallback: true,
+    fallbackReason: '解读接口暂时不可用，已使用本地备用解读。',
+  };
+}
+
 export const tarotCopy = {
   zh: {
     tarot_fool: {
@@ -156,7 +196,7 @@ export const tarotCopy = {
       keywordUpright: '无畏探身',
       keywordReversed: '珍藏初念',
       encounter: {
-        name: '原初的蓝色幼苗',
+        name: '愚者',
         theme: '初始与摇篮',
         prompt: '在冰冷星尘的裂隙中，一株散发着地球蓝光的脆弱幼苗正静默舒展。',
         visualHint: '一束破土而出的微光，宛如遥远母星寄来的最初请柬。',
@@ -169,7 +209,7 @@ export const tarotCopy = {
       keywordUpright: '静默明澈',
       keywordReversed: '秘藏回响',
       encounter: {
-        name: '悬浮的时空石卷',
+        name: '女祭司',
         theme: '直觉与隐秘',
         prompt: '一本由凝固光子构筑的古籍悬停空中，无数透明文字在虚空中游弋流转。',
         visualHint: '一页页翻动的时空书页，记录着未曾被发声的宇宙秘密。',
@@ -182,7 +222,7 @@ export const tarotCopy = {
       keywordUpright: '秩序定锚',
       keywordReversed: '融化疆界',
       encounter: {
-        name: '自旋的高维超正方体',
+        name: '皇帝',
         theme: '秩序与边界',
         prompt: '一座绝对对称的四维几何超立方体正在虚空中以精准的数学节奏无声自旋。',
         visualHint: '线条森严的几何骨架，折射出整个星系不变的引力常数。',
@@ -195,7 +235,7 @@ export const tarotCopy = {
       keywordUpright: '薪火相传',
       keywordReversed: '独寻道标',
       encounter: {
-        name: '星球上的巨像教皇',
+        name: '教皇',
         theme: '誓约与传统',
         prompt: '巨大的教皇立于星球地表，三重冠冕没入星光，长袍垂落如山壁。旅者与白马停在权杖投下的阴影里。',
         visualHint: '冠冕、祝祷的手掌与植入大地的权杖，构成一座沉默的人形圣殿。',
@@ -208,7 +248,7 @@ export const tarotCopy = {
       keywordUpright: '灵魂同频',
       keywordReversed: '守望独岛',
       encounter: {
-        name: '双生互绕的共鸣星核',
+        name: '恋人',
         theme: '陪伴与契约',
         prompt: '两颗微缩星核在磁力线上互相环绕起舞，如同一对永不分开的星辰舞者。',
         visualHint: '相互追逐却永不相撞的微光，折射出陪伴的至高张力。',
@@ -221,7 +261,7 @@ export const tarotCopy = {
       keywordUpright: '决意破障',
       keywordReversed: '驻马听涛',
       encounter: {
-        name: '失重裂谷的星桥悬索',
+        name: '战车',
         theme: '勇气与决断',
         prompt: '深不见底的引力裂谷横亘在眼前，仅有一道由细微光子绷紧的悬索通向对岸。',
         visualHint: '深渊之上的纤薄天平，唯有坚定的信念方能踏足。',
@@ -234,7 +274,7 @@ export const tarotCopy = {
       keywordUpright: '孤光自照',
       keywordReversed: '融雪分光',
       encounter: {
-        name: '虚空灯塔守望者',
+        name: '隐士',
         theme: '内省与沉静',
         prompt: '一盏悬挂于极低空中的磨砂黑曜石提灯，内部微弱地燃烧着一星恒古火苗。',
         visualHint: '在苍茫夜色中孤立自守的一豆微光，驱散了十步以内的虚无。',
@@ -247,7 +287,7 @@ export const tarotCopy = {
       keywordUpright: '顺流潮转',
       keywordReversed: '渊停岳峙',
       encounter: {
-        name: '青铜与玄冰星轨天象仪',
+        name: '命运之轮',
         theme: '时运与自处',
         prompt: '一座巨大的多层环形天象仪在平原上徐徐啮合运转，齿轮之间流泻着冰晶与恒星风。',
         visualHint: '无数交错的轨道环圈，预言着每次相聚与离散的精确度数。',
@@ -260,7 +300,7 @@ export const tarotCopy = {
       keywordUpright: '击碎幻象',
       keywordReversed: '拾玉瓦砾',
       encounter: {
-        name: '倾颓的时空棱镜尖峰',
+        name: '高塔',
         theme: '破立与重塑',
         prompt: '一片巨大的反光镜群在地面上碎裂成千百块镜片，每一面镜片都折射着截然不同的平行世界。',
         visualHint: '斑驳倒塌的旧日幻境，暴露出底层最赤裸裸的虚空真实。',
@@ -273,7 +313,7 @@ export const tarotCopy = {
       keywordUpright: '倾注甘霖',
       keywordReversed: '潜泉暗蓄',
       encounter: {
-        name: '失重液态星光泉',
+        name: '星辰',
         theme: '希望与自愈',
         prompt: '一汪无重力悬浮的银色流体清泉，正轻柔地泛起涟漪，洗涤着周围的宇宙尘埃。',
         visualHint: '清澈不冻的流动光体，能抚平漫长星际跋涉留下的每一道划痕。',
@@ -286,7 +326,7 @@ export const tarotCopy = {
       keywordUpright: '炽烈迸发',
       keywordReversed: '余烬心火',
       encounter: {
-        name: '初生恒星的温室火炉',
+        name: '太阳',
         theme: '新生与炽热',
         prompt: '一颗刚诞生的微型脉冲太阳悬在地面三尺之上，散发着麦浪与烘烤般的纯白暖意。',
         visualHint: '宛如新烤麦包般香甜的金色微光，彻底驱散了四周百里的霜冻。',
@@ -299,7 +339,7 @@ export const tarotCopy = {
       keywordUpright: '圆融通达',
       keywordReversed: '未完待续',
       encounter: {
-        name: '回旋衔尾蛇星环门',
+        name: '世界',
         theme: '圆满与新生',
         prompt: '一道由咬尾星蛇构成的发光巨拱耸立在天地尽头，拱门背后是一片重新呼吸的崭新星云。',
         visualHint: '首尾相衔的闭环之门，标志着一段旅程的极点与下一次跨越。',
@@ -314,7 +354,7 @@ export const tarotCopy = {
       keywordUpright: 'ORIGIN',
       keywordReversed: 'PRESERVATION',
       encounter: {
-        name: 'Primordial Blue Seedling',
+        name: 'THE FOOL',
         theme: 'Beginning and cradle',
         prompt: 'In a rift of frozen star-dust, a fragile seedling of Earth-blue light unfolds in silence.',
         visualHint: 'A first gleam breaking soil, like an invitation sent from a distant home star.',
@@ -327,7 +367,7 @@ export const tarotCopy = {
       keywordUpright: 'INTUITION',
       keywordReversed: 'VEIL',
       encounter: {
-        name: 'Suspended Chronicle of Time',
+        name: 'THE PRIESTESS',
         theme: 'Intuition and secrecy',
         prompt: 'A tome of condensed photons hangs in the air, its transparent letters drifting through the void.',
         visualHint: 'Turning pages of spacetime, recording secrets the cosmos never spoke aloud.',
@@ -340,7 +380,7 @@ export const tarotCopy = {
       keywordUpright: 'ORDER',
       keywordReversed: 'SOFTENING',
       encounter: {
-        name: 'Spinning Hypercube',
+        name: 'THE EMPEROR',
         theme: 'Order and boundary',
         prompt: 'A perfectly symmetrical four-dimensional cube spins in the void to a precise, silent rhythm.',
         visualHint: 'A severe geometric skeleton, reflecting the galaxy’s unchanging constants.',
@@ -353,7 +393,7 @@ export const tarotCopy = {
       keywordUpright: 'BEACON',
       keywordReversed: 'UNBOUND',
       encounter: {
-        name: 'Colossal Hierophant',
+        name: 'THE HIEROPHANT',
         theme: 'Vow and tradition',
         prompt: 'A giant hierophant stands on the planet, triple crown lost in starlight, robes falling like a cliff. Traveler and white horse halt in the staff’s shadow.',
         visualHint: 'Crown, blessing hand, and staff rooted in the earth form a silent human temple.',
@@ -366,7 +406,7 @@ export const tarotCopy = {
       keywordUpright: 'BOND',
       keywordReversed: 'AUTONOMY',
       encounter: {
-        name: 'Twin Resonant Cores',
+        name: 'THE LOVERS',
         theme: 'Companionship and covenant',
         prompt: 'Two miniature star-cores dance along magnetic lines, like dancers who never part.',
         visualHint: 'Lights that chase and never collide, showing the highest tension of companionship.',
@@ -379,7 +419,7 @@ export const tarotCopy = {
       keywordUpright: 'MOMENTUM',
       keywordReversed: 'PAUSE',
       encounter: {
-        name: 'Starbridge Over the Rift',
+        name: 'THE CHARIOT',
         theme: 'Courage and decision',
         prompt: 'A bottomless gravity rift cuts the path; only a filament of photons stretches to the far side.',
         visualHint: 'A thin balance over the abyss, walkable only by conviction.',
@@ -392,7 +432,7 @@ export const tarotCopy = {
       keywordUpright: 'LANTERN',
       keywordReversed: 'THAW',
       encounter: {
-        name: 'Void Lantern Watcher',
+        name: 'THE HERMIT',
         theme: 'Inwardness and stillness',
         prompt: 'A frosted obsidian lantern hangs just above the ground, a single ancient flame burning weakly inside.',
         visualHint: 'One bean of light standing alone in the night, clearing ten steps of emptiness.',
@@ -405,7 +445,7 @@ export const tarotCopy = {
       keywordUpright: 'CYCLES',
       keywordReversed: 'CENTER',
       encounter: {
-        name: 'Bronze Ice Astrolabe',
+        name: 'WHEEL OF FORTUNE',
         theme: 'Fortune and self-possession',
         prompt: 'A vast layered astrolabe turns on the plain, ice crystals and stellar wind spilling between its gears.',
         visualHint: 'Intersecting orbital rings that mark every meeting and parting in exact degrees.',
@@ -418,7 +458,7 @@ export const tarotCopy = {
       keywordUpright: 'FRACTURE',
       keywordReversed: 'RENEWAL',
       encounter: {
-        name: 'Shattered Prism Spire',
+        name: 'THE TOWER',
         theme: 'Break and remake',
         prompt: 'A field of broken mirrors lies on the ground, each shard refracting a different parallel world.',
         visualHint: 'A collapsed old illusion, exposing the bare void beneath.',
@@ -431,7 +471,7 @@ export const tarotCopy = {
       keywordUpright: 'SPRING',
       keywordReversed: 'RECHARGE',
       encounter: {
-        name: 'Weightless Starlight Spring',
+        name: 'THE STAR',
         theme: 'Hope and healing',
         prompt: 'A silver fluid spring hangs without gravity, rippling softly as it rinses the cosmic dust.',
         visualHint: 'A clear unfrozen light that can smooth every scratch of a long voyage.',
@@ -444,7 +484,7 @@ export const tarotCopy = {
       keywordUpright: 'DAWN',
       keywordReversed: 'EMBER',
       encounter: {
-        name: 'Newborn Solar Hearth',
+        name: 'THE SUN',
         theme: 'Birth and heat',
         prompt: 'A newborn miniature sun hangs three feet above the ground, radiating the warmth of wheat and baking bread.',
         visualHint: 'Golden light as sweet as fresh bread, driving frost from a hundred miles around.',
@@ -457,7 +497,7 @@ export const tarotCopy = {
       keywordUpright: 'COMPLETION',
       keywordReversed: 'INFINITE',
       encounter: {
-        name: 'Ouroboros Gateway',
+        name: 'THE WORLD',
         theme: 'Completion and renewal',
         prompt: 'A luminous arch of a star-serpent biting its tail stands at the world’s edge; behind it, a newborn nebula breathes again.',
         visualHint: 'A closed loop of a door, marking the end of one journey and the next crossing.',
@@ -494,7 +534,7 @@ export function tarotEncounter(lang: Language, id: string) {
 }
 
 export function tarotEncounterName(lang: Language, id: string, fallback = ''): string {
-  return tarotEncounter(lang, id)?.name ?? fallback;
+  return tarotName(lang, id, fallback);
 }
 
 export function tarotEncounterPrompt(lang: Language, id: string, fallback = ''): string {

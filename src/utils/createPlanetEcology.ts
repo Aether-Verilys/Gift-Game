@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { createEcologyModels, type EcologyGroupReplacement } from './ecologyModels';
+import { sampleBirdFlight, type BirdFlightPattern } from './birdFlight';
 
 /**
  * Planet ecology: rocks, luminous flora, ruins, drifting
  * spores and a few birds flying close to the planet surface.
  *
- * Flora and rocks are InstancedMeshes sharing one rim-light shader
- * (wind sway + bioluminescent pulse on the GPU), so hundreds of plants cost
+ * Flora and rocks use InstancedMeshes, including the prepared Tripo P2
+ * replacements with authored PBR textures and GPU wind sway. Plants cost
  * a handful of draw calls. Everything on the surface lives in planet-local
  * space and is placed with the same (angle, latitude) convention as the
  * existing landmarks: rotation.x = angle along the walking meridian,
@@ -19,6 +20,7 @@ export interface PlanetEcology {
   setClearing: (angle: number | null, radius: number) => void;
   update: (dt: number, elapsed: number) => void;
   setPixelRatio: (ratio: number) => void;
+  dispose: () => void;
 }
 
 // Deterministic layout so the planet looks the same every session.
@@ -34,56 +36,6 @@ function mulberry32(seed: number) {
 
 const TAU = Math.PI * 2;
 const wrapAngle = (a: number) => THREE.MathUtils.euclideanModulo(a + Math.PI, TAU) - Math.PI;
-
-// ---------------------------------------------------------------------------
-// Flora shader: rim-lit silhouettes that match the line-art traveler, with
-// height-weighted wind sway and a pulsing glow driven by the aGlow attribute.
-// ---------------------------------------------------------------------------
-const floraVertex = /* glsl */ `
-uniform float uTime;
-uniform float uSway;
-attribute float aGlow;
-varying float vGlow;
-varying float vRim;
-varying float vPhase;
-void main() {
-  vec3 p = position;
-  #ifdef USE_INSTANCING
-    mat4 im = instanceMatrix;
-  #else
-    mat4 im = mat4(1.0);
-  #endif
-  float phase = dot(im[3].xyz, vec3(0.37, 0.71, 0.53));
-  float h = max(p.y, 0.0);
-  float gust = sin(uTime * 1.7 + phase) + 0.35 * sin(uTime * 3.1 + phase * 1.7);
-  p.x += gust * uSway * h * h;
-  p.z += cos(uTime * 1.3 + phase) * uSway * 0.6 * h * h;
-  vec4 mv = modelViewMatrix * im * vec4(p, 1.0);
-  vec3 n = normalize(mat3(modelViewMatrix * im) * normal);
-  vRim = 1.0 - abs(dot(n, normalize(-mv.xyz)));
-  vGlow = aGlow;
-  vPhase = phase;
-  gl_Position = projectionMatrix * mv;
-}
-`;
-
-const floraFragment = /* glsl */ `
-uniform float uTime;
-uniform vec3 uBase;
-uniform vec3 uRimColor;
-uniform vec3 uGlowColor;
-uniform float uRimPower;
-varying float vGlow;
-varying float vRim;
-varying float vPhase;
-void main() {
-  float rim = pow(clamp(vRim, 0.0, 1.0), uRimPower);
-  float pulse = 0.62 + 0.38 * sin(uTime * 1.9 + vPhase * 3.0);
-  vec3 col = uBase + uRimColor * rim + uGlowColor * vGlow * (pulse * 1.15 + rim * 0.5);
-  gl_FragColor = vec4(col, 1.0);
-  #include <colorspace_fragment>
-}
-`;
 
 // Spores rise from the glowing flora, fade, and respawn — all on the GPU.
 const sporeVertex = /* glsl */ `
@@ -115,33 +67,18 @@ void main() {
 }
 `;
 
-type GlowFn = number | ((y: number) => number);
-
-/** Merge primitive parts into one geometry with a per-vertex aGlow attribute. */
-function buildPlant(parts: Array<{ geo: THREE.BufferGeometry; glow?: GlowFn }>) {
-  const prepared = parts.map(({ geo: g, glow = 0 }) => {
-    g.deleteAttribute('uv');
-    const pos = g.getAttribute('position');
-    const arr = new Float32Array(pos.count);
-    for (let i = 0; i < pos.count; i++) arr[i] = typeof glow === 'number' ? glow : glow(pos.getY(i));
-    g.setAttribute('aGlow', new THREE.BufferAttribute(arr, 1));
-    return g.index ? g.toNonIndexed() : g;
-  });
-  const merged = mergeGeometries(prepared)!;
-  prepared.forEach((g) => g.dispose());
-  return merged;
-}
-
-const tube = (points: number[][], radius: number, segments = 16) =>
-  new THREE.TubeGeometry(
-    new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p[0], p[1], p[2]))),
-    segments,
-    radius,
-    5,
-    false
-  );
-
-export function createPlanetEcology(planetRadius: number, pixelRatio: number): PlanetEcology {
+export function createPlanetEcology(
+  planetRadius: number,
+  pixelRatio: number,
+  landmarks: {
+    crystalSpires: THREE.Group[];
+    surfaceMonoliths?: EcologyGroupReplacement[];
+    impactCraters?: EcologyGroupReplacement[];
+    starBeacons?: EcologyGroupReplacement[];
+    standingStoneRings?: EcologyGroupReplacement[];
+    ruinedStairs?: EcologyGroupReplacement[];
+  } = { crystalSpires: [] },
+): PlanetEcology {
   const rand = mulberry32(20261005);
   const range = (a: number, b: number) => a + rand() * (b - a);
   const side = () => (rand() < 0.5 ? -1 : 1);
@@ -149,20 +86,14 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   const surface = new THREE.Group();
   const sky = new THREE.Group();
   const timeUniform = { value: 0 };
+  const models = createEcologyModels(timeUniform);
 
-  const floraMaterial = (opts: { base: number; rim: number; glow: number; sway: number; rimPower?: number }) =>
-    new THREE.ShaderMaterial({
-      vertexShader: floraVertex,
-      fragmentShader: floraFragment,
-      uniforms: {
-        uTime: timeUniform,
-        uSway: { value: opts.sway },
-        uBase: { value: new THREE.Color(opts.base) },
-        uRimColor: { value: new THREE.Color(opts.rim) },
-        uGlowColor: { value: new THREE.Color(opts.glow) },
-        uRimPower: { value: opts.rimPower ?? 2.2 },
-      },
-    });
+  models.replaceGroups(landmarks.crystalSpires.map(root => ({
+    root, baseY: -1.25,
+  })), 'crystal-spire', 2.5, 1.4);
+  models.replaceGroups(landmarks.surfaceMonoliths ?? [], 'surface-monolith', 3.2, 1.2);
+  models.replaceGroups(landmarks.impactCraters ?? [], 'impact-crater', 0.8, 2.8);
+  models.replaceGroups(landmarks.starBeacons ?? [], 'star-beacon', 2.2, 1.1);
 
   // ---- Clearing bookkeeping -------------------------------------------------
   interface Placed {
@@ -188,17 +119,16 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   };
 
   const instanced = (
-    geometry: THREE.BufferGeometry,
-    material: THREE.Material,
+    asset: string, height: number, width: number, sway: number,
     spots: Array<{ angle: number; lat: number; yaw: number; scale: THREE.Vector3; sink?: number; tilt?: number }>
   ) => {
-    const mesh = new THREE.InstancedMesh(geometry, material, spots.length);
-    mesh.frustumCulled = false; // instances wrap the whole planet
+    let mesh: THREE.InstancedMesh | null = null;
+    const matrices: THREE.Matrix4[] = [];
     const shrink = new THREE.Matrix4();
     const tmp = new THREE.Matrix4();
     spots.forEach((s, i) => {
       const base = placeMatrix(s.angle, s.lat, s.yaw, s.scale, s.sink, s.tilt);
-      mesh.setMatrixAt(i, base);
+      matrices.push(base.clone());
       placed.push({
         angle: s.angle,
         lat: s.lat,
@@ -208,13 +138,24 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
           const k = Math.max(p, 1e-4);
           // Sink into the ground as it shrinks, so plants retreat rather than pop.
           shrink.makeScale(k, k, k).setPosition(0, (p - 1) * 1.2, 0);
-          mesh.setMatrixAt(i, tmp.multiplyMatrices(base, shrink));
-          dirtyMeshes.add(mesh);
+          matrices[i].copy(tmp.multiplyMatrices(base, shrink));
+          if (mesh) {
+            mesh.setMatrixAt(i, matrices[i]);
+            dirtyMeshes.add(mesh);
+          }
         },
       });
     });
-    surface.add(mesh);
-    return mesh;
+    models.load(asset, height, width, sway, model => {
+      mesh = new THREE.InstancedMesh(model.geometry, model.material, spots.length);
+      mesh.name = model.name;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      matrices.forEach((matrix, i) => mesh!.setMatrixAt(i, matrix));
+      mesh.instanceMatrix.needsUpdate = true;
+      surface.add(mesh);
+    });
   };
 
   // Scatter helper: pick a spot along the lap, kept off the walking path.
@@ -248,11 +189,8 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
     return out;
   };
 
-  // ---- Terrain: rock outcrops ----------------------------------------------
-  const rockGeo = buildPlant([{ geo: new THREE.DodecahedronGeometry(1, 0) }]);
-  instanced(
-    rockGeo,
-    floraMaterial({ base: 0x05060b, rim: 0xb7c2d8, glow: 0x000000, sway: 0, rimPower: 2.6 }),
+  // Register placement and clearing immediately; allocate meshes only when GLBs arrive.
+  instanced('moon-rock', 2, 2, 0,
     [...cluster(40, 0.05, 0.1, 0.6, 0.25, 1.1), ...Array.from({ length: 16 }, () => spot(0.12, 0.6, 0.6, 1.8, 0.7))].map((s) => ({
       ...s,
       scale: s.scale.clone().multiply(new THREE.Vector3(1, range(0.45, 0.8), range(0.7, 1))),
@@ -260,176 +198,52 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
       tilt: range(-0.3, 0.3),
     }))
   );
-
-  // ---- Flora -----------------------------------------------------------------
-  // Lumen mushrooms: dark stems, glowing domed caps with softer gills.
-  const mushroomGeo = buildPlant([
-    { geo: new THREE.CylinderGeometry(0.06, 0.11, 1, 6).translate(0, 0.5, 0) },
-    { geo: new THREE.SphereGeometry(0.42, 12, 6, 0, TAU, 0, Math.PI / 2).scale(1, 0.7, 1).translate(0, 0.98, 0), glow: 1 },
-    { geo: new THREE.CircleGeometry(0.4, 12).rotateX(Math.PI / 2).translate(0, 0.98, 0), glow: 0.45 },
-  ]);
-  instanced(
-    mushroomGeo,
-    floraMaterial({ base: 0x04050a, rim: 0x9fb4d0, glow: 0x46e0d0, sway: 0.03 }),
-    cluster(84, 0.03, 0.08, 0.5, 0.6, 2.4)
-  );
-
-  // Crystal reeds: thin faceted spires whose tips glow violet.
-  const reedParts: Array<{ geo: THREE.BufferGeometry; glow?: GlowFn }> = [];
-  for (let i = 0; i < 6; i++) {
-    const h = 1.4 + (i % 3) * 0.6;
-    const a = (i / 6) * TAU;
-    reedParts.push({
-      geo: new THREE.ConeGeometry(0.07, h, 4)
-        .translate(0, h / 2, 0)
-        .rotateZ(Math.cos(a) * 0.22)
-        .rotateX(Math.sin(a) * 0.22)
-        .translate(Math.cos(a) * 0.18, 0, Math.sin(a) * 0.18),
-      glow: (y) => THREE.MathUtils.smoothstep(y, 0.6, 2.4),
-    });
-  }
-  instanced(
-    buildPlant(reedParts),
-    floraMaterial({ base: 0x06050c, rim: 0xc9b8ff, glow: 0xa97bff, sway: 0.05 }),
-    cluster(60, 0.04, 0.09, 0.55, 0.7, 1.5)
-  );
-
-  // Spiral ferns: curling fronds that sway the most.
-  const fernParts: Array<{ geo: THREE.BufferGeometry; glow?: GlowFn }> = [];
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * TAU;
-    const pts: number[][] = [];
-    for (let k = 0; k <= 10; k++) {
-      const t = k / 10;
-      const r = 0.9 * t;
-      const curl = t * t * 4.2;
-      pts.push([Math.cos(a) * r * Math.cos(curl * 0.3), Math.sin(t * Math.PI * 0.8) * 1.3 + Math.sin(curl) * 0.25 * t, Math.sin(a) * r]);
-    }
-    fernParts.push({ geo: tube(pts, 0.03, 18), glow: (y) => (y > 1.1 ? 0.35 : 0) });
-  }
-  instanced(
-    buildPlant(fernParts),
-    floraMaterial({ base: 0x030607, rim: 0x9ee6c2, glow: 0x6dffc0, sway: 0.08 }),
-    cluster(56, 0.05, 0.07, 0.5, 0.7, 1.4)
-  );
-
-  // Lantern stalks: tall bending stems with a hanging glowing bulb.
-  const lanternGeo = buildPlant([
-    { geo: tube([[0, 0, 0], [0.05, 1.4, 0], [0.25, 2.7, 0], [0.7, 3.2, 0], [0.95, 2.9, 0]], 0.045, 20) },
-    { geo: new THREE.SphereGeometry(0.22, 10, 8).scale(1, 1.25, 1).translate(0.95, 2.62, 0), glow: 1 },
-    { geo: new THREE.ConeGeometry(0.16, 0.5, 5).rotateZ(-1).translate(0.25, 0.5, 0) },
-    { geo: new THREE.ConeGeometry(0.14, 0.45, 5).rotateZ(1).translate(-0.2, 0.9, 0) },
-  ]);
-  instanced(
-    lanternGeo,
-    floraMaterial({ base: 0x05050a, rim: 0xe9dcc0, glow: 0xffb35a, sway: 0.012 }),
-    Array.from({ length: 34 }, () => spot(0.13, 0.5, 0.8, 1.5))
-  );
-
-  // Low grass tufts near the path so the ground never reads as empty.
-  const grassParts: Array<{ geo: THREE.BufferGeometry; glow?: GlowFn }> = [];
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * TAU;
-    const h = 0.35 + (i % 3) * 0.18;
-    grassParts.push({
-      geo: new THREE.ConeGeometry(0.035, h, 3).translate(0, h / 2, 0).rotateZ(Math.cos(a) * 0.45).rotateX(Math.sin(a) * 0.45),
-    });
-  }
-  instanced(
-    buildPlant(grassParts),
-    floraMaterial({ base: 0x05070a, rim: 0xd8e2f0, glow: 0x000000, sway: 0.35, rimPower: 1.6 }),
+  instanced('mushroom', 1.3, 0.95, 0.12, cluster(84, 0.03, 0.08, 0.5, 0.6, 2.4));
+  instanced('crystal-reeds', 2.6, 1.1, 0.32, cluster(60, 0.04, 0.09, 0.55, 0.7, 1.5));
+  instanced('spiral-fern', 1.6, 1.9, 0.26, cluster(56, 0.05, 0.07, 0.5, 0.7, 1.4));
+  instanced('lantern-plant', 3.2, 1.4, 0.30, Array.from({ length: 34 }, () => spot(0.13, 0.5, 0.8, 1.5)));
+  instanced('silver-grass', 0.7, 0.85, 0.16,
     [...cluster(160, 0.04, 0.05, 0.4, 0.8, 1.6), ...Array.from({ length: 120 }, () => spot(0.05, 0.6, 0.7, 1.5))]
   );
 
-  // ---- Ruins (regular meshes with the traveler's pale edge lines) -------------
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x0b0c14, roughness: 0.9, metalness: 0.1 });
-  const ruinEdgeMat = new THREE.LineBasicMaterial({ color: 0xe9e2cf, transparent: true, opacity: 0.55 });
-  const glyphMat = new THREE.MeshBasicMaterial({ color: 0xd9b98a });
-  const stone = (parent: THREE.Object3D, geo: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(geo, stoneMat), new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), ruinEdgeMat));
-    g.position.set(x, y, z);
-    g.rotation.set(rx, ry, rz);
-    parent.add(g);
-    return g;
-  };
-  const pillar = (parent: THREE.Object3D, x: number, z: number, h: number, broken = false) => {
-    stone(parent, new THREE.CylinderGeometry(0.32, 0.36, h, 10), x, h / 2, z);
-    stone(parent, new THREE.BoxGeometry(0.9, 0.22, 0.9), x, 0.11, z);
-    if (!broken) stone(parent, new THREE.BoxGeometry(0.85, 0.24, 0.85), x, h + 0.12, z);
-  };
-
+  // ---- Ruins ---------------------------------------------------------------
+  // Every static ruin slot is an empty placement root. Authored P2 meshes are
+  // attached asynchronously; no procedural replacement geometry or material
+  // is allocated while a model is loading or if a load fails.
   const ruinBuilders: Array<() => THREE.Group> = [
-    // Broken colonnade with one fallen column.
-    () => {
-      const g = new THREE.Group();
-      [4.2, 2.6, 3.8, 1.4].forEach((h, i) => pillar(g, i * 1.6 - 2.4, 0, h, i % 2 === 1));
-      stone(g, new THREE.CylinderGeometry(0.32, 0.32, 3.4, 10), 1.2, 0.3, 1.6, 0, 0.4, Math.PI / 2);
-      stone(g, new THREE.BoxGeometry(3.4, 0.3, 0.9), -1.6, 4.35, 0, 0, 0, 0.04);
-      return g;
-    },
-    // Half arch gate.
-    () => {
-      const g = new THREE.Group();
-      pillar(g, -1.8, 0, 3.4, true);
-      pillar(g, 1.8, 0, 2.2, true);
-      stone(g, new THREE.TorusGeometry(1.8, 0.28, 6, 18, Math.PI * 0.55), 0, 3.3, 0, 0, 0, Math.PI * 0.45);
-      return g;
-    },
-    // Ring of standing stones around a glowing glyph.
-    () => {
-      const g = new THREE.Group();
-      for (let i = 0; i < 7; i++) {
-        const a = (i / 7) * TAU;
-        const h = 1.6 + ((i * 37) % 10) / 10;
-        stone(g, new THREE.BoxGeometry(0.7, h, 0.35), Math.cos(a) * 2.6, h / 2 - 0.1, Math.sin(a) * 2.6, 0, -a, i === 3 ? 0.35 : 0);
-      }
-      const glyph = new THREE.Mesh(new THREE.RingGeometry(0.8, 0.92, 32), glyphMat);
-      glyph.rotation.x = -Math.PI / 2;
-      glyph.position.y = 0.04;
-      g.add(glyph);
-      return g;
-    },
-    // Half-buried astrolabe ring.
-    () => {
-      const g = new THREE.Group();
-      stone(g, new THREE.TorusGeometry(2.4, 0.22, 8, 40), 0, 1.2, 0, 0.25, 0, 0.1);
-      stone(g, new THREE.TorusGeometry(1.7, 0.1, 6, 32), 0, 1.25, 0, 1.2, 0.4, 0);
-      stone(g, new THREE.SphereGeometry(0.4, 10, 8), 0, 1.25, 0);
-      return g;
-    },
-    // Stair fragment climbing to nothing.
-    () => {
-      const g = new THREE.Group();
-      for (let i = 0; i < 6; i++) stone(g, new THREE.BoxGeometry(2.2 - i * 0.12, 0.38, 0.7), 0, 0.19 + i * 0.38, -i * 0.62);
-      stone(g, new THREE.BoxGeometry(0.4, 1.2, 0.4), 1.3, 0.6, -2.4, 0, 0, 0.2);
-      return g;
-    },
-    // Obelisk with a lit inscription.
-    () => {
-      const g = new THREE.Group();
-      stone(g, new THREE.CylinderGeometry(0.35, 0.65, 5.2, 4), 0, 2.6, 0, 0, Math.PI / 4, 0.06);
-      stone(g, new THREE.ConeGeometry(0.42, 0.7, 4), 0.16, 5.5, 0, 0, Math.PI / 4, 0.06);
-      stone(g, new THREE.BoxGeometry(1.8, 0.4, 1.8), 0, 0.2, 0);
-      for (let i = 0; i < 4; i++) {
-        const mark = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.05), glyphMat);
-        mark.position.set(0.04 + i * 0.012, 1.6 + i * 0.55, 0.52 - i * 0.05);
-        g.add(mark);
-      }
-      return g;
-    },
-    // Toppled statue head, half sunk.
-    () => {
-      const g = new THREE.Group();
-      const head = stone(g, new THREE.IcosahedronGeometry(1.5, 1), 0, 0.7, 0, 0.3, 0.6, 1.1);
-      head.scale.set(1, 1.25, 0.95);
-      stone(g, new THREE.ConeGeometry(0.35, 0.8, 4), 0.9, 1.2, 1.1, 0.4, 0, -0.8);
-      return g;
-    },
+    // Imported asset is attached to this empty placement root.
+    () => new THREE.Group(),
+    // Imported asset is attached to this empty placement root.
+    () => new THREE.Group(),
+    // Ring of standing stones is supplied by the authored P2 replacement.
+    () => new THREE.Group(),
+    // Imported asset is attached to this empty placement root.
+    () => new THREE.Group(),
+    // Stair fragment is supplied by the authored P2 replacement.
+    () => new THREE.Group(),
+    // Imported asset is attached to this empty placement root.
+    () => new THREE.Group(),
+    // The final slot is an empty placement root until the authored toppled-statue
+    // GLB arrives; a failed load leaves it empty without procedural fallback meshes.
+    () => new THREE.Group(),
   ];
+  const archRoots: THREE.Group[] = [];
+  const colonnades: EcologyGroupReplacement[] = [];
+  const astrolabes: EcologyGroupReplacement[] = [];
+  const obelisks: EcologyGroupReplacement[] = [];
+  const standingStoneRings: EcologyGroupReplacement[] = [];
+  const ruinedStairs: EcologyGroupReplacement[] = [];
+  const toppledStatues: EcologyGroupReplacement[] = [];
   const ruinCount = 16;
   for (let i = 0; i < ruinCount; i++) {
     const ruin = ruinBuilders[i % ruinBuilders.length]();
+    if (i % ruinBuilders.length === 1) archRoots.push(ruin);
+    if (i % ruinBuilders.length === 0) colonnades.push({ root: ruin });
+    if (i % ruinBuilders.length === 3) astrolabes.push({ root: ruin, baseY: -0.45 });
+    if (i % ruinBuilders.length === 5) obelisks.push({ root: ruin });
+    if (i % ruinBuilders.length === 2) standingStoneRings.push({ root: ruin });
+    if (i % ruinBuilders.length === 4) ruinedStairs.push({ root: ruin });
+    if (i % ruinBuilders.length === 6) toppledStatues.push({ root: ruin });
     const angle = (i / ruinCount) * TAU + range(-0.12, 0.12);
     const lat = side() * range(0.17, 0.5);
     const scale = range(0.9, 1.6);
@@ -452,6 +266,14 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
       },
     });
   }
+
+  models.replaceArches(archRoots);
+  models.replaceGroups(colonnades, 'broken-colonnade', 4.5, 6.2);
+  models.replaceGroups(astrolabes, 'ancient-astrolabe', 4.0, 4.8);
+  models.replaceGroups(obelisks, 'weathered-obelisk', 5.8, 1.8);
+  models.replaceGroups(standingStoneRings, 'standing-stone-ring', 2.8, 5.6);
+  models.replaceGroups(ruinedStairs, 'ruined-stair', 3.0, 3.8);
+  models.replaceGroups(toppledStatues, 'toppled-statue', 3.4, 3.2);
 
   // ---- Spores drifting up from the glowing groves ----------------------------
   const sporeCount = 360;
@@ -494,23 +316,12 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   surface.add(spores);
 
   // ---- Birds -----------------------------------------------------------------
-  const birdMat = new THREE.LineBasicMaterial({ color: 0xf2f4ff, transparent: true, opacity: 0.85 });
-  const wingGeo = (dir: number) =>
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(dir * 0.45, 0.08, -0.12),
-      new THREE.Vector3(dir * 0.95, -0.02, -0.32),
-    ]);
-  const leftWingGeo = wingGeo(-1);
-  const rightWingGeo = wingGeo(1);
-  const bodyGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0.32), new THREE.Vector3(0, 0, -0.4)]);
-
   interface Bird {
     group: THREE.Group;
-    left: THREE.Line;
-    right: THREE.Line;
+    model?: THREE.Mesh;
     offset: THREE.Vector3;
     phase: number;
+    flight: BirdFlightPattern;
   }
   interface Flock {
     birds: Bird[];
@@ -529,27 +340,42 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   // The visible walking area is the upper cap of the sphere (around the
   // apex). Keep the flight circle on that cap so birds do not disappear
   // behind the planet on the far/lower hemisphere.
-  const flightRadius = Math.min(20, planetRadius * 0.34);
-  const flightHeight = -planetRadius + Math.sqrt(Math.max(0, planetRadius * planetRadius - flightRadius * flightRadius)) + 2.2;
+  // Keep the flock close enough to the walking cap to feel part of the world,
+  // but high enough to stay above the planet silhouette in the gameplay camera.
+  // With the new radius-70 planet, a 2.2-unit clearance put the birds at about
+  // y = -0.7, inside the camera's foreground surface and effectively invisible.
+  const flightRadius = Math.min(16, planetRadius * 0.23);
+  const birdClearance = 6.5;
+  const flightHeight = -planetRadius + Math.sqrt(Math.max(0, planetRadius * planetRadius - flightRadius * flightRadius)) + birdClearance;
   const flockSpecs = [{
     center: new THREE.Vector3(0, flightHeight, 0),
     rx: flightRadius,
     rz: flightRadius,
-    speed: (0.035 + rand() * 0.025) * (rand() > 0.5 ? 1 : -1),
+    // Double the orbital pace so the birds visibly cross the sky more often.
+    speed: (0.035 + rand() * 0.025) * 4 * (rand() > 0.5 ? 1 : -1),
     count: 1 + Math.floor(rand() * 3),
     latitude: (rand() - 0.5) * 0.08,
   }];
   for (const spec of flockSpecs) {
     for (let i = 0; i < spec.count; i++) {
       const group = new THREE.Group();
-      const left = new THREE.Line(leftWingGeo, birdMat);
-      const right = new THREE.Line(rightWingGeo, birdMat);
-      group.add(left, right, new THREE.Line(bodyGeo, birdMat));
-      group.scale.setScalar(range(0.8, 1.2));
+      // The authored GLB is normalized to a 2.1-unit wingspan. Keep the
+      // in-scene silhouette close to the original procedural birds.
+      group.scale.setScalar(range(0.45, 0.65) * 0.25);
       sky.add(group);
       // Every bird gets its own latitude, phase and pace so the small count
       // reads as individual wildlife rather than a formation.
-      const bird: Bird = { group, left, right, offset: new THREE.Vector3(), phase: rand() * TAU };
+      const phase = rand() * TAU;
+      const bird: Bird = {
+        group, offset: new THREE.Vector3(), phase,
+        flight: {
+          flapDuration: range(2.2, 3.0),
+          glideDuration: range(3.8, 5.6),
+          climbHeight: range(0.65, 1.05),
+          phaseOffset: range(0, 7),
+          wingPhase: phase,
+        },
+      };
       flocks.push({
         birds: [bird],
         center: spec.center,
@@ -563,6 +389,7 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
       });
     }
   }
+  models.replaceBirds(flocks.flatMap(flock => flock.birds));
   const flockPos = new THREE.Vector3();
   const flockAhead = new THREE.Vector3();
   const flockBasis = new THREE.Matrix4();
@@ -571,14 +398,17 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   const flockRight = new THREE.Vector3();
   const birdOffset = new THREE.Vector3();
   const birdTarget = new THREE.Vector3();
+  const flightUp = new THREE.Vector3();
   const flockPoint = (f: Flock, t: number, out: THREE.Vector3) => {
-    const latitude = f.latitude + Math.sin(t * 2 + f.bob) * 0.035;
+    const latitude = f.latitude;
     const cosLat = Math.cos(latitude);
     out.set(
       f.center.x + Math.cos(t) * cosLat * f.orbitRadius,
-      f.center.y + Math.sin(latitude) * f.orbitRadius,
+      f.center.y,
       f.center.z + Math.sin(t) * cosLat * f.orbitRadius,
     );
+    // Follow the curved ground with a safe baseline; the flight cycle adds lift.
+    out.y = -planetRadius + Math.sqrt(Math.max(0, planetRadius * planetRadius - out.x * out.x - out.z * out.z)) + birdClearance;
   };
 
   // ---- Public API --------------------------------------------------------------
@@ -614,23 +444,28 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
 
     for (const f of flocks) {
       f.t += f.speed * dt;
-      flockPoint(f, f.t, flockPos);
-      flockPoint(f, f.t + Math.sign(f.speed) * 0.02, flockAhead);
-      flockForward.subVectors(flockAhead, flockPos).normalize();
-      flockRight.crossVectors(worldUp, flockForward).normalize();
-      flockBasis.makeBasis(flockRight, worldUp, flockForward);
+      const lookAheadSeconds = 1 / 60;
       for (const b of f.birds) {
-        // Basis columns are (right, up, forward), so +offset.z trails behind.
+        const motion = sampleBirdFlight(elapsed, b.flight);
+        const ahead = sampleBirdFlight(elapsed + lookAheadSeconds, b.flight);
+        flockPoint(f, f.t, flockPos);
+        flockPoint(f, f.t + f.speed * lookAheadSeconds, flockAhead);
+        flockPos.y += motion.altitude;
+        flockAhead.y += ahead.altitude;
+        // Heading follows the climbing/descending path, excluding wingbeat jitter.
+        flockForward.subVectors(flockAhead, flockPos).normalize();
+        flockRight.crossVectors(worldUp, flockForward).normalize();
+        flightUp.crossVectors(flockForward, flockRight).normalize();
+        flockBasis.makeBasis(flockRight, flightUp, flockForward);
         birdOffset.copy(b.offset).applyMatrix4(flockBasis);
         b.group.position.copy(flockPos).sub(birdOffset);
+        b.group.position.addScaledVector(flightUp, motion.bodyLift);
         birdTarget.copy(b.group.position).add(flockForward);
         b.group.lookAt(birdTarget);
-        // Flap in bursts, then glide.
-        const glide = 0.35 + 0.65 * Math.max(0, Math.sin(elapsed * 0.6 + b.phase));
-        const flap = Math.sin(elapsed * 9 + b.phase) * 0.7 * glide;
-        b.left.rotation.z = -flap;
-        b.right.rotation.z = flap;
-        b.group.rotation.z += Math.sin(elapsed * 0.5 + b.phase) * 0.12;
+        const flap = motion.flap;
+        if (b.model?.morphTargetInfluences) b.model.morphTargetInfluences[0] = flap;
+        // Bank around the local forward axis; editing Euler z can change heading.
+        b.group.rotateZ(Math.sin(elapsed * 0.5 + b.phase) * 0.12);
       }
     }
   };
@@ -638,6 +473,7 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   return {
     surface,
     sky,
+    dispose: () => models.dispose(),
     setClearing,
     update,
     setPixelRatio: (ratio) => {

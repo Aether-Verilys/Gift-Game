@@ -1,0 +1,161 @@
+{
+  "model": "P2-20260801",
+  "texture_size": 1024,
+  "assets": [
+    {
+      "id": "crystal-reeds",
+      "title": "紫晶芦苇",
+      "faces": 12000,
+      "prompt": "One compact tuft of six slender crystalline reeds growing from a small shared root, tapered angular dark stems of varying heights, translucent-looking opaque lavender crystal tips, delicate silver facets, narrow upright silhouette. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game asset, restrained charcoal and silver palette with subtle luminous accents, clean silhouette, isolated whole object, no background, no display pedestal, no text.",
+      "generation_task": "18db34fb-2a6b-490c-9b23-abe84b96114d",
+      "conversion_task": "b9af4b20-e1fa-4cbd-ad3b-8700c5c033a8",
+      "credits": 120,
+      "validation": {
+        "name": "crystal-reeds",
+        "triangles": 11175,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1142204
+      }
+    },
+    {
+      "id": "spiral-fern",
+      "title": "螺旋星蕨",
+      "faces": 15000,
+      "prompt": "One alien fern plant with five gracefully arching fronds radiating from a small central root, each frond has thick sculpted paired leaflets and a tightly curled fiddlehead tip, muted dark jade leaves with pale mint veins, botanically coherent connected solid geometry, no pot. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game asset, restrained charcoal and silver palette with subtle luminous accents, clean silhouette, isolated whole object, no background, no display pedestal, no text.",
+      "generation_task": "c72b6600-91e6-4e4b-804a-046f3daae1f3",
+      "conversion_task": "979f59dd-03a0-47d4-8fc1-81a7770ea76d",
+      "credits": 120,
+      "validation": {
+        "name": "spiral-fern",
+        "triangles": 17127,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1892796
+      }
+    },
+    {
+      "id": "lantern-plant",
+      "title": "垂灯花",
+      "faces": 14000,
+      "prompt": "One tall alien lantern plant with a slender curved charcoal stem arching at the top, a single hanging enclosed teardrop amber seedpod with thick silver ribs, two elegant pointed leaves on the lower stem, small natural root, warm golden pod contrasts with dark stalk, no pot. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game asset, restrained charcoal and silver palette with subtle luminous accents, clean silhouette, isolated whole object, no background, no display pedestal, no text.",
+      "generation_task": "bebc11b1-4aaf-4734-9139-e86c7d76b2de",
+      "conversion_task": "9c060788-7029-4d16-bc35-7ec16fe470c0",
+      "credits": 120,
+      "validation": {
+        "name": "lantern-plant",
+        "triangles": 14970,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1309912
+      }
+    },
+    {
+      "id": "moon-rock",
+      "title": "月岩簇",
+      "faces": 10000,
+      "prompt": "One low asymmetric cluster of three fused weathered moon rocks, broad angular charcoal slate faces, chipped layered edges, sparse pale silver mineral seams and tiny muted blue crystalline inclusions, grounded broad base, natural geological formation, no vegetation. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game asset, restrained charcoal and silver palette with subtle luminous accents, clean silhouette, isolated whole object, no background, no display pedestal, no text.",
+      "generation_task": "e9b1912f-ca49-4c2f-8cc0-5a9507ab33eb",
+      "conversion_task": "7bce164b-aa76-43ff-9365-84cde662b204",
+      "credits": 120,
+      "validation": {
+        "name": "moon-rock",
+        "triangles": 9257,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1291160
+      }
+    },
+    {
+      "id": "broken-arch",
+      "title": "残月拱门",
+      "faces": 18000,
+      "prompt": "One ancient ruined stone archway, two weathered square stone piers joined by a broken semicircular arch with chipped voussoirs, open doorway fully unobstructed, asymmetric missing outer stones but connected top arch, dark basalt stone with worn ivory edges and subtle engraved geometric lines, compact stone feet, no surrounding ground. Mystical nocturnal cosmic tarot world, sculptural stylized realistic game asset, restrained charcoal and silver palette with subtle luminous accents, clean silhouette, isolated whole object, no background, no display pedestal, no text.",
+      "generation_task": "3b41327a-8b6a-499b-996e-eb68dbafe441",
+      "conversion_task": "715e3663-bb21-4cae-bd3c-f16364afbd10",
+      "credits": 120,
+      "validation": {
+        "name": "broken-arch",
+        "triangles": 19924,
+        "textures": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          },
+          {
+            "width": 1024,
+            "height": 1024,
+            "mimeType": "image/jpeg"
+          }
+        ],
+        "bytes": 1057268
+      }
+    }
+  ]
+}

@@ -1,9 +1,10 @@
 class AudioService {
   private ctx: AudioContext | null = null;
-  // Start silent so audio never begins unexpectedly; the player can enable it.
-  private isMuted: boolean = true;
+  // Audio is enabled by default; the player can mute it at any time.
+  private isMuted: boolean = false;
   private masterGain: GainNode | null = null;
   private music: HTMLAudioElement | null = null;
+  private musicGain: GainNode | null = null;
   private samples = new Map<string, AudioBuffer>();
   private lastSampleTime = new Map<string, number>();
   private isInitialized: boolean = false;
@@ -40,6 +41,7 @@ class AudioService {
     this.music.loop = true;
     this.music.preload = 'none';
     const musicGain = this.ctx.createGain();
+    this.musicGain = musicGain;
     musicGain.gain.value = 0.55;
     this.ctx.createMediaElementSource(this.music).connect(musicGain);
     musicGain.connect(this.masterGain);
@@ -98,6 +100,84 @@ class AudioService {
     return this.isMuted;
   }
 
+  /** A short wordless, formant-filtered choir for the colossus reveal. */
+  public playColossusChoir() {
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const duration = 4;
+    if (now - (this.lastSampleTime.get('colossus-choir') ?? -Infinity) < duration) return;
+    this.lastSampleTime.set('colossus-choir', now);
+
+    const envelope = ctx.createGain();
+    envelope.gain.setValueAtTime(0, now);
+    envelope.gain.linearRampToValueAtTime(0.9, now + 0.25);
+    envelope.gain.linearRampToValueAtTime(0.8, now + 3.1);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration - 0.03);
+    envelope.gain.linearRampToValueAtTime(0, now + duration);
+    envelope.connect(this.masterGain);
+
+    // Give the choir room above the ambient track, then restore the music.
+    if (this.musicGain) {
+      const music = this.musicGain.gain;
+      music.cancelScheduledValues(now);
+      music.setValueAtTime(music.value, now);
+      music.linearRampToValueAtTime(0.18, now + 0.18);
+      music.setValueAtTime(0.18, now + 3.1);
+      music.linearRampToValueAtTime(0.55, now + duration + 0.4);
+    }
+
+    // An open fifth with a suspended second: hushed awe rather than a fanfare.
+    const pitches = [146.83, 220, 293.66, 329.63];
+    const nodes: AudioNode[] = [envelope];
+    let remainingVoices = pitches.length * 2;
+    pitches.forEach((frequency, voice) => {
+      [-6, 6].forEach((detune) => {
+        const oscillator = ctx.createOscillator();
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.value = frequency;
+        oscillator.detune.value = detune;
+
+        const vibrato = ctx.createOscillator();
+        const vibratoDepth = ctx.createGain();
+        vibrato.frequency.value = 4.3 + voice * 0.23;
+        vibratoDepth.gain.value = 3;
+        vibrato.connect(vibratoDepth);
+        vibratoDepth.connect(oscillator.detune);
+
+        const pan = ctx.createStereoPanner();
+        pan.pan.value = detune < 0 ? -0.45 : 0.45;
+        pan.connect(envelope);
+        nodes.push(oscillator, vibrato, vibratoDepth, pan);
+        // Parallel vowel formants turn the harmonic source into an airy “ah”.
+        [[730, 0.12], [1090, 0.065], [2440, 0.018]].forEach(([formant, level]) => {
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = formant * (1 + voice * 0.012);
+          filter.Q.value = 5;
+          const gain = ctx.createGain();
+          gain.gain.value = level;
+          oscillator.connect(filter);
+          filter.connect(gain);
+          gain.connect(pan);
+          nodes.push(filter, gain);
+        });
+        oscillator.onended = () => {
+          if (--remainingVoices === 0) nodes.forEach((node) => node.disconnect());
+        };
+        oscillator.start(now);
+        vibrato.start(now);
+        oscillator.stop(now + duration);
+        vibrato.stop(now + duration);
+      });
+    });
+  }
+
+  public playUIClick() {
+    if (this.playSample('choice-confirm', 0.1, 1.15)) return;
+    this.playHoverChime();
+  }
+
   public playHoverChime() {
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
@@ -154,7 +234,7 @@ class AudioService {
   }
 
   public playHoofStep(isHorse: boolean = false) {
-    if (this.playSample(Math.random() > 0.5 ? 'footstep-1' : 'footstep-2', isHorse ? 0.16 : 0.1, isHorse ? 0.8 : 1)) return;
+    if (this.playSample(Math.random() > 0.5 ? 'footstep-1' : 'footstep-2', isHorse ? 0.02 : 0.0125, isHorse ? 0.8 : 1)) return;
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
       const now = this.ctx.currentTime;
@@ -167,7 +247,7 @@ class AudioService {
       osc.frequency.setValueAtTime(baseFreq, now);
       osc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
 
-      gain.gain.setValueAtTime(isHorse ? 0.035 : 0.02, now);
+      gain.gain.setValueAtTime(isHorse ? 0.004375 : 0.0025, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
 
       osc.connect(gain);

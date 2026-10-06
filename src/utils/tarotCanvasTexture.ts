@@ -1,3 +1,4 @@
+import { loadTarotArtwork } from './tarotArtwork';
 import * as THREE from 'three';
 import { TarotCardDef, CardSymbol } from '../types';
 import { Language, copy, tarotEncounterName, tarotKeyword, tarotName } from '../i18n';
@@ -253,6 +254,8 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
     return new THREE.CanvasTexture(canvas);
   }
 
+  const draw = (image?: HTMLImageElement) => {
+  ctx.clearRect(0, 0, width, height);
   // 1. Deep Midnight Obsidian Void Background
   const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 40, width / 2, height / 2, width * 0.7);
   if (isHovered) {
@@ -278,16 +281,33 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
     ctx.fill();
   }
 
+  if (image) {
+    ctx.save();
+    ctx.filter = 'grayscale(1) contrast(1.12)';
+    const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+    const w = image.naturalWidth * scale;
+    const h = image.naturalHeight * scale;
+    ctx.drawImage(image, (width - w) / 2, (height - h) / 2, w, h);
+    ctx.restore();
+    const shade = ctx.createLinearGradient(0, 0, 0, height);
+    shade.addColorStop(0, 'rgba(0,0,0,0.6)');
+    shade.addColorStop(0.22, 'rgba(0,0,0,0)');
+    shade.addColorStop(0.48, 'rgba(0,0,0,0.1)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.88)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, width, height);
+  }
+
   // 2. Ornate Double Golden / Silver Borders
   const borderMargin = 22;
-  const borderColor = isHovered ? '#f5d77f' : '#c8b273';
+  const borderColor = isHovered ? '#eeeeee' : '#aaaaaa';
   ctx.strokeStyle = borderColor;
   ctx.lineWidth = isHovered ? 2.5 : 1.8;
   ctx.strokeRect(borderMargin, borderMargin, width - borderMargin * 2, height - borderMargin * 2);
 
   // Inner inset border
   const innerMargin = 34;
-  ctx.strokeStyle = isHovered ? 'rgba(245, 215, 127, 0.75)' : 'rgba(200, 178, 115, 0.45)';
+  ctx.strokeStyle = isHovered ? 'rgba(235, 235, 235, 0.75)' : 'rgba(180, 180, 180, 0.45)';
   ctx.lineWidth = 1.0;
   ctx.strokeRect(innerMargin, innerMargin, width - innerMargin * 2, height - innerMargin * 2);
 
@@ -304,7 +324,7 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
   // The card itself stays readable in the spread. Reversed cards are marked
   // by a different top/bottom corner placement instead of rotating the art.
   const isReversed = card.drawnOrientation === 'reversed';
-  const markerColor = isReversed ? '#ff718b' : '#e5cf8e';
+  const markerColor = isReversed ? '#ff718b' : '#cccccc';
   ctx.fillStyle = markerColor;
   ctx.font = 'bold 18px sans-serif';
   ctx.fillText(isReversed ? '◆' : '◇', isReversed ? width - 58 : 58, 72);
@@ -327,7 +347,7 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
   ctx.letterSpacing = '0px';
 
   // 4. Center Symbol Sigil
-  drawSymbolOnCanvas(ctx, card.symbol, width / 2, 280, 85);
+  if (!image) drawSymbolOnCanvas(ctx, card.symbol, width / 2, 280, 85);
 
   // 5. Card Title
   const title = tarotName(language, card.id, language === 'zh' ? card.nameZh : card.nameEn);
@@ -339,7 +359,7 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
   ctx.letterSpacing = language === 'zh' ? '6px' : '3px';
   ctx.fillText(title, width / 2, 450);
 
-  ctx.fillStyle = isHovered ? 'rgba(245, 215, 127, 0.95)' : 'rgba(200, 178, 115, 0.75)';
+  ctx.fillStyle = isHovered ? 'rgba(235, 235, 235, 0.95)' : 'rgba(180, 180, 180, 0.75)';
   ctx.font = '12px "Cinzel", "Times New Roman", serif';
   ctx.letterSpacing = '3px';
   ctx.fillText(keyword, width / 2, 480);
@@ -370,14 +390,25 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
   ctx.fillText(`${copy[language].cardEncounter}${encounterName}`, width / 2, 595);
 
   // 8. Bottom Selection Cue
-  ctx.fillStyle = isHovered ? '#ffd166' : 'rgba(255, 255, 255, 0.4)';
+  ctx.fillStyle = isHovered ? '#eeeeee' : 'rgba(255, 255, 255, 0.4)';
   ctx.font = '12px "Cinzel", "Songti SC", sans-serif';
   ctx.letterSpacing = '2px';
   // Mirror the selection cue around the numeral: upright cards cue below,
   // reversed cards cue above so the two orientations remain visually balanced.
   ctx.fillText(copy[language].cardSelect, width / 2, isReversed ? 130 : 690);
 
+  };
+  draw();
   const texture = new THREE.CanvasTexture(canvas);
+  // Keep the fallback sigil until the local cover is decoded, then update
+  // this same GPU texture. Disposed hover/language variants must stay disposed.
+  let disposed = false;
+  texture.addEventListener('dispose', () => { disposed = true; });
+  void loadTarotArtwork(card.symbol)?.then((image) => {
+    if (disposed) return;
+    draw(image);
+    texture.needsUpdate = true;
+  }).catch(() => { /* Retain the sigil if a cover is unavailable. */ });
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
@@ -385,9 +416,14 @@ export function createTarotFrontTexture(card: TarotCardDef, index: number, isHov
 }
 
 /**
- * Generates an ornate cosmic back texture for 3D Tarot Cards
+ * Loads the authored card-back artwork for 3D Tarot Cards.
+ *
+ * The procedural canvas remains as an immediate placeholder so the cards do
+ * not flash blank while the WebP is decoded, and as a local fallback if the
+ * asset cannot be loaded. Once the image is ready, the same texture object is
+ * updated in place so every material already using it receives the artwork.
  */
-export function createTarotBackTexture(): THREE.CanvasTexture {
+export function createTarotBackTexture(): THREE.Texture<HTMLImageElement | HTMLCanvasElement> {
   const width = 512;
   const height = 800;
   const canvas = document.createElement('canvas');
@@ -396,7 +432,7 @@ export function createTarotBackTexture(): THREE.CanvasTexture {
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
-    return new THREE.CanvasTexture(canvas);
+    return new THREE.Texture<HTMLImageElement | HTMLCanvasElement>(canvas);
   }
 
   // Deep obsidian velvet
@@ -408,12 +444,12 @@ export function createTarotBackTexture(): THREE.CanvasTexture {
 
   // Double golden border
   const margin = 24;
-  ctx.strokeStyle = '#8a7747';
+  ctx.strokeStyle = '#888888';
   ctx.lineWidth = 1.8;
   ctx.strokeRect(margin, margin, width - margin * 2, height - margin * 2);
 
   const innerMargin = 36;
-  ctx.strokeStyle = 'rgba(138, 119, 71, 0.45)';
+  ctx.strokeStyle = 'rgba(138, 138, 138, 0.45)';
   ctx.lineWidth = 1;
   ctx.strokeRect(innerMargin, innerMargin, width - innerMargin * 2, height - innerMargin * 2);
 
@@ -425,7 +461,7 @@ export function createTarotBackTexture(): THREE.CanvasTexture {
   for (let r = 50; r <= 160; r += 35) {
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(200, 180, 120, 0.35)';
+    ctx.strokeStyle = 'rgba(180, 180, 180, 0.35)';
     ctx.stroke();
   }
 
@@ -435,15 +471,31 @@ export function createTarotBackTexture(): THREE.CanvasTexture {
     ctx.beginPath();
     ctx.moveTo(Math.cos(ang) * 45, Math.sin(ang) * 45);
     ctx.lineTo(Math.cos(ang) * 165, Math.sin(ang) * 165);
-    ctx.strokeStyle = 'rgba(200, 180, 120, 0.25)';
+    ctx.strokeStyle = 'rgba(180, 180, 180, 0.25)';
     ctx.stroke();
   }
 
   ctx.restore();
 
-  const texture = new THREE.CanvasTexture(canvas);
+  const texture = new THREE.Texture<HTMLImageElement | HTMLCanvasElement>(canvas);
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const authoredBackUrl = `${import.meta.env.BASE_URL}assets/tarot-back.webp`;
+  new THREE.TextureLoader().load(
+    authoredBackUrl,
+    (loadedTexture) => {
+      texture.image = loadedTexture.image;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+      loadedTexture.dispose();
+    },
+    undefined,
+    () => {
+      // Keep the procedural placeholder when the authored asset is missing.
+    },
+  );
   return texture;
 }

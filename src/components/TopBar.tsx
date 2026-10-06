@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, BookOpen, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Eye, RotateCcw } from 'lucide-react';
 import { CameraView, PlayerStats } from '../types';
 import { Language, copy } from '../i18n';
 
@@ -60,9 +60,6 @@ export const TopBar: React.FC<TopBarProps> = ({
           <h1 className="text-sm font-artistic font-normal tracking-[0.14em] text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] uppercase">
             Gift for Universe
           </h1>
-          <span className="text-[9px] text-white/25 font-garamond tracking-[0.14em] uppercase hidden sm:inline">
-            // GIFT FOR UNIVERSE
-          </span>
         </div>
         <div className="text-[10px] text-white/45 font-artistic flex items-center gap-2 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] mt-0.5">
           <span className="tracking-[0.08em] uppercase text-white/70">{currentChapter}</span>
@@ -95,16 +92,6 @@ export const TopBar: React.FC<TopBarProps> = ({
           title={t.chronicle}
         >
           <BookOpen className="w-4 h-4" />
-        </button>
-
-        {/* Zen Mode Button */}
-        <button
-          id="zen-toggle-btn"
-          onClick={onToggleZenMode}
-          className="p-1.5 text-white/50 hover:text-white transition-colors cursor-pointer"
-          title={t.zen}
-        >
-          <EyeOff className="w-4 h-4" />
         </button>
 
         {/* Restart Button */}
