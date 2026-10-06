@@ -27,6 +27,21 @@ const TAROT_COLLECTION_KEY = 'gift-game.unlocked-tarot.v1';
 const DECISION_TIME_LIMIT = 20;
 const AUTO_ADVANCE_TIME_LIMIT = 7;
 
+const STARTUP_ASSETS = [
+  'assets/cover.png',
+  'assets/audio/card-flip.ogg', 'assets/audio/choice-confirm.ogg', 'assets/audio/footstep-1.ogg',
+  'assets/audio/footstep-2.ogg', 'assets/audio/starlight.ogg', 'assets/audio/space-ambient-osmic.mp3',
+  'assets/planet/moon.glb', 'assets/planet/half_moon.glb', 'assets/traveler.glb', 'assets/horse/horse.glb',
+  'assets/ecology/planet.glb', 'assets/ecology/walkable-planet.glb', 'assets/ecology/ancient-astrolabe.glb',
+  'assets/ecology/broken-arch.glb', 'assets/ecology/broken-colonnade.glb', 'assets/ecology/crystal-reeds.glb',
+  'assets/ecology/crystal-spire.glb', 'assets/ecology/impact-crater.glb', 'assets/ecology/lantern-plant.glb',
+  'assets/ecology/moon-rock.glb', 'assets/ecology/mushroom.glb', 'assets/ecology/ruined-stair.glb',
+  'assets/ecology/sacred-colossus-base.glb', 'assets/ecology/silver-grass.glb', 'assets/ecology/spiral-fern.glb',
+  'assets/ecology/standing-stone-ring.glb', 'assets/ecology/star-beacon.glb', 'assets/ecology/surface-monolith.glb',
+  'assets/ecology/toppled-statue.glb', 'assets/ecology/weathered-obelisk.glb', 'assets/ecology/bird.glb',
+  ...['chariot','emperor','fool','hermit','hierophant','high_priestess','lovers','star','sun','tower','wheel_of_fortune','world'].map(name => `assets/tarot/${name}.glb`),
+];
+
 function readUnlockedCards(): string[] {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(TAROT_COLLECTION_KEY) || '[]');
@@ -39,6 +54,27 @@ function readUnlockedCards(): string[] {
 }
 
 export default function App() {
+  const [startupProgress, setStartupProgress] = useState(0);
+  const [startupReady, setStartupReady] = useState(false);
+  const [startupVisible, setStartupVisible] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      let completed = 0;
+      await Promise.all(STARTUP_ASSETS.map(async (asset) => {
+        try { await fetch(`${import.meta.env.BASE_URL}${asset}`, { cache: 'force-cache' }); } catch { /* scene loaders handle unavailable optional assets */ }
+        if (!cancelled) { completed += 1; setStartupProgress(Math.round((completed / STARTUP_ASSETS.length) * 100)); }
+      }));
+      if (!cancelled) {
+        setStartupReady(true);
+        window.setTimeout(() => setStartupVisible(false), 850);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
   const createClientFallback = useCallback((history: StageRecord[], lang: Language): LLMInterpretation => {
     return localFallbackReading(lang, history[0]?.card);
   }, []);
@@ -646,6 +682,23 @@ export default function App() {
         unlockedCardIds={unlockedCardIds}
         language={language}
       />
+      <AnimatePresence>
+        {startupVisible && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-end justify-center overflow-hidden bg-black"
+            initial={{ opacity: 1 }} animate={{ opacity: startupReady ? 0 : 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: 'easeInOut' }}
+          >
+            <img src={`${import.meta.env.BASE_URL}assets/cover.png`} alt="Tarot Gift" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/10" />
+            <div className="relative z-10 mb-14 w-[min(420px,75vw)] text-center font-garamond text-white">
+              <div className="mb-3 text-[11px] uppercase tracking-[0.35em] text-white/70">{startupReady ? 'Entering the journey' : 'Preparing your journey'}</div>
+              <div className="h-1 overflow-hidden rounded-full bg-white/20"><motion.div className="h-full bg-white" animate={{ width: `${startupProgress}%` }} transition={{ ease: 'easeOut' }} /></div>
+              <div className="mt-2 text-[10px] tracking-[0.25em] text-white/55">{startupProgress}%</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
