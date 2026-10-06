@@ -31,16 +31,20 @@ const STARTUP_ASSETS = [
   'assets/cover.png',
   'assets/audio/card-flip.ogg', 'assets/audio/choice-confirm.ogg', 'assets/audio/footstep-1.ogg',
   'assets/audio/footstep-2.ogg', 'assets/audio/starlight.ogg', 'assets/audio/space-ambient-osmic.mp3',
-  'assets/planet/moon.glb', 'assets/planet/half_moon.glb', 'assets/traveler.glb', 'assets/horse/horse.glb',
-  'assets/ecology/planet.glb', 'assets/ecology/walkable-planet.glb', 'assets/ecology/ancient-astrolabe.glb',
-  'assets/ecology/broken-arch.glb', 'assets/ecology/broken-colonnade.glb', 'assets/ecology/crystal-reeds.glb',
-  'assets/ecology/crystal-spire.glb', 'assets/ecology/impact-crater.glb', 'assets/ecology/lantern-plant.glb',
-  'assets/ecology/moon-rock.glb', 'assets/ecology/mushroom.glb', 'assets/ecology/ruined-stair.glb',
-  'assets/ecology/sacred-colossus-base.glb', 'assets/ecology/silver-grass.glb', 'assets/ecology/spiral-fern.glb',
-  'assets/ecology/standing-stone-ring.glb', 'assets/ecology/star-beacon.glb', 'assets/ecology/surface-monolith.glb',
-  'assets/ecology/toppled-statue.glb', 'assets/ecology/weathered-obelisk.glb', 'assets/ecology/bird.glb',
-  ...['chariot','emperor','fool','hermit','hierophant','high_priestess','lovers','star','sun','tower','wheel_of_fortune','world'].map(name => `assets/tarot/${name}.glb`),
+  'assets/The-Fool.webp', 'assets/chariot-tarotF.webp', 'assets/emperor-tarotF2.webp', 'assets/heirophant-v2F.webp',
+  'assets/hermitF2.webp', 'assets/high-priestess-v2F.webp', 'assets/lover-tarotF.webp', 'assets/star-cardF2.webp',
+  'assets/sun-cardF2.webp', 'assets/the-world-tarotF.webp', 'assets/tower-v3F.webp', 'assets/wheels-of-fate-tarotF.webp',
+  'assets/tarot-back.webp',
 ];
+
+function scoresFromHistory(history: StageRecord[]): PlayerStats {
+  return history.reduce<PlayerStats>((scores, record) => ({
+    empathy: scores.empathy + (record.offeredGift ? 2 : 1),
+    insight: scores.insight + (record.offeredGift ? 1 : 2),
+    hesitation: scores.hesitation + (record.offeredGift ? 3 : 1),
+    boundary: scores.boundary + (record.offeredGift ? 0 : 2),
+  }), { empathy: 2, insight: 2, hesitation: 2, boundary: 2 });
+}
 
 function readUnlockedCards(): string[] {
   try {
@@ -56,6 +60,13 @@ function readUnlockedCards(): string[] {
 export default function App() {
   const [startupProgress, setStartupProgress] = useState(0);
   const [startupReady, setStartupReady] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
+
+  useEffect(() => {
+    if (!startupReady || !sceneReady) return;
+    const timer = window.setTimeout(() => setStartupVisible(false), 850);
+    return () => window.clearTimeout(timer);
+  }, [startupReady, sceneReady]);
   const [startupVisible, setStartupVisible] = useState(true);
 
   useEffect(() => {
@@ -63,12 +74,14 @@ export default function App() {
     const load = async () => {
       let completed = 0;
       await Promise.all(STARTUP_ASSETS.map(async (asset) => {
-        try { await fetch(`${import.meta.env.BASE_URL}${asset}`, { cache: 'force-cache' }); } catch { /* scene loaders handle unavailable optional assets */ }
+        try {
+          const response = await fetch(`${import.meta.env.BASE_URL}${asset}`, { cache: 'force-cache' });
+          if (response.ok) await response.arrayBuffer();
+        } catch { /* scene loaders handle unavailable optional assets */ }
         if (!cancelled) { completed += 1; setStartupProgress(Math.round((completed / STARTUP_ASSETS.length) * 100)); }
       }));
       if (!cancelled) {
         setStartupReady(true);
-        window.setTimeout(() => setStartupVisible(false), 850);
       }
     };
     load();
@@ -76,7 +89,7 @@ export default function App() {
   }, []);
 
   const createClientFallback = useCallback((history: StageRecord[], lang: Language): LLMInterpretation => {
-    return localFallbackReading(lang, history[0]?.card);
+    return localFallbackReading(lang, history[0]?.card, history, scoresFromHistory(history));
   }, []);
 
   // Keep the final page localized even when an older server process returns a
@@ -96,7 +109,7 @@ export default function App() {
       data.fallbackReason || '',
     ].some(containsChinese);
 
-    if (data.fallback || (lang === 'en' && hasChineseText)) {
+    if (lang === 'en' && hasChineseText) {
       return createClientFallback(history, lang);
     }
     return data;
@@ -426,12 +439,13 @@ export default function App() {
       const historyByStage = new Map(stageHistory.map((record) => [record.stage, record]));
       if (latestRecord) historyByStage.set(currentStage, latestRecord);
       const fullHistory = Array.from(historyByStage.values()).sort((a, b) => a.stage - b.stage);
+      const readingScores = scoresFromHistory(fullHistory);
       setFinalHistory(fullHistory);
       const minimumReadingDelay = new Promise((resolve) => window.setTimeout(resolve, 2000));
       fetch('/api/interpret', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stageHistory: fullHistory, language }),
+        body: JSON.stringify({ stageHistory: fullHistory, language, scores: readingScores }),
       })
         .then(async (res) => {
           const data = await res.json();
@@ -569,6 +583,7 @@ export default function App() {
         onGiftDroppedOnEntity={() => handleGiftDecision(true)}
         language={language}
         onJourneyComplete={handleJourneyComplete}
+        onSceneReady={() => setSceneReady(true)}
       />
 
 
@@ -686,13 +701,13 @@ export default function App() {
         {startupVisible && (
           <motion.div
             className="fixed inset-0 z-[100] flex items-end justify-center overflow-hidden bg-black"
-            initial={{ opacity: 1 }} animate={{ opacity: startupReady ? 0 : 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 1 }} animate={{ opacity: startupReady && sceneReady ? 0 : 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.8, ease: 'easeInOut' }}
           >
             <img src={`${import.meta.env.BASE_URL}assets/cover.png`} alt="Tarot Gift" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/10" />
             <div className="relative z-10 mb-14 w-[min(420px,75vw)] text-center font-garamond text-white">
-              <div className="mb-3 text-[11px] uppercase tracking-[0.35em] text-white/70">{startupReady ? 'Entering the journey' : 'Preparing your journey'}</div>
+              <div className="mb-3 text-[11px] uppercase tracking-[0.35em] text-white/70">{startupReady && sceneReady ? copy[language].startupEntering : copy[language].startupPreparing}</div>
               <div className="h-1 overflow-hidden rounded-full bg-white/20"><motion.div className="h-full bg-white" animate={{ width: `${startupProgress}%` }} transition={{ ease: 'easeOut' }} /></div>
               <div className="mt-2 text-[10px] tracking-[0.25em] text-white/55">{startupProgress}%</div>
             </div>

@@ -94,6 +94,9 @@ export interface PlayerStats {
   boundary: number;
 }
 
+/** The four soft reflection dimensions shown in the chronicle and final reading. */
+export type ReadingScores = PlayerStats;
+
 export interface ChronicleEntry {
   timestamp: string;
   stage: number;

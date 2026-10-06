@@ -39,10 +39,8 @@ export const FinalReadingModal: React.FC<FinalReadingModalProps> = ({
   const hasChineseInterpretation = interpretation
     ? [interpretation.metaphorTitle, interpretation.situationReading, interpretation.psychologicalInsight, interpretation.selfAwareness, interpretation.fallbackReason || ''].some(containsChinese)
     : false;
-  const visibleInterpretation = interpretation && (
-    isFallback || (language === 'en' && hasChineseInterpretation)
-  )
-    ? localFallbackReading(language, history[0]?.card)
+  const visibleInterpretation = interpretation && language === 'en' && hasChineseInterpretation
+    ? localFallbackReading(language, history[0]?.card, history, stats)
     : interpretation;
 
   return (

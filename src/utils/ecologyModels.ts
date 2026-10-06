@@ -214,7 +214,7 @@ ${shader.vertexShader}`.replace('#include <begin_vertex>', `
      * planet radius. This keeps the imported model's authored materials while
      * making its origin and scale predictable for the existing surface roots.
      */
-    replaceWalkablePlanet(root: THREE.Group, radius: number) {
+    replaceWalkablePlanet(root: THREE.Group, radius: number, onReady?: () => void) {
       loader.load(`${import.meta.env.BASE_URL}assets/planet/moon.glb`, gltf => {
         if (disposed) {
           release(gltf.scene);
@@ -276,8 +276,12 @@ ${shader.vertexShader}`.replace('#include <begin_vertex>', `
         imported.scale.setScalar(fitScale);
         imported.updateMatrixWorld(true);
         root.add(imported);
+        onReady?.();
       }, undefined, error => {
-        if (!disposed) console.error('Failed to load external moon planet', error);
+        if (!disposed) {
+          console.error('Failed to load external moon planet', error);
+          onReady?.();
+        }
       });
     },
     replaceBirds(birds: Array<{ group: THREE.Group; model?: THREE.Mesh }>) {

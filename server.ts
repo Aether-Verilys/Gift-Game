@@ -1,10 +1,12 @@
 import express from 'express';
-import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { buildFinalReadingPrompt, type ReadingLanguage, type ReadingScores } from './server/prompts/finalReadingPrompt';
 
-dotenv.config();
+// Load local secrets for development. `.env.local` takes precedence over
+// `.env`, and both are ignored by Git (see .gitignore).
+dotenv.config({ path: ['.env.local', '.env'] });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,27 +16,28 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
-// Initialize GoogleGenAI SDK
-// Using User-Agent header 'aistudio-build' as required
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({
-  apiKey: apiKey || '',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
+// DeepSeek exposes an OpenAI-compatible chat completions endpoint. Keep the
+// provider behind the server so the browser never receives the API key.
+const apiKey = process.env.DEEPSEEK_API_KEY;
+const deepSeekBaseUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/$/, '');
+const deepSeekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 
 interface StageRecord {
   stage: number;
+  stageName?: string;
   card: {
     numeral: string;
     nameEn: string;
     nameZh: string;
     keyword: string;
+    keywordUpright?: string;
+    keywordReversed?: string;
     archetype: string;
     symbol: string;
+    encounter?: {
+      giftReactionOffered: string;
+      giftReactionKept: string;
+    };
   };
   orientation: 'upright' | 'reversed';
   offeredGift: boolean;
@@ -43,7 +46,6 @@ interface StageRecord {
 }
 
 // Fallback poetic generator in case API key is missing or service unavailable
-type ReadingLanguage = 'zh' | 'en';
 
 function deriveFocusSituation(history: StageRecord[], language: ReadingLanguage = 'zh') {
   const first = history[0];
@@ -85,25 +87,45 @@ function deriveFocusSituation(history: StageRecord[], language: ReadingLanguage 
   return themes[first.card.nameZh] || `围绕“${first.card.nameZh}”所展开的选择、关系与自我定位`;
 }
 
+function resolveReadingScores(scores: Partial<ReadingScores> | undefined, history: StageRecord[]): ReadingScores {
+  const offered = history.filter((item) => item.offeredGift).length;
+  return {
+    empathy: Number.isFinite(scores?.empathy) ? Number(scores?.empathy) : 2 + offered * 2 + (history.length - offered),
+    insight: Number.isFinite(scores?.insight) ? Number(scores?.insight) : 2 + offered + (history.length - offered) * 2,
+    hesitation: Number.isFinite(scores?.hesitation) ? Number(scores?.hesitation) : 2 + offered * 3 + (history.length - offered),
+    boundary: Number.isFinite(scores?.boundary) ? Number(scores?.boundary) : 2 + (history.length - offered) * 2,
+  };
+}
+
 function generatePoeticFallback(
   history: StageRecord[],
   focusSituation: string | undefined,
   language: ReadingLanguage = 'zh',
+  scores: ReadingScores = resolveReadingScores(undefined, history),
 ) {
   const resolvedSituation = focusSituation ?? deriveFocusSituation(history, language);
   if (language === 'en') {
     const first = history[0];
+    const second = history[1];
+    const third = history[2];
     const topic = first ? `the choice and self-positioning reflected by ${first.card.nameEn}` : 'the choice and direction taking shape now';
     const giftCount = history.filter((h) => h.offeredGift).length;
-    let metaphorTitle = 'A wooden shutter left open in the snowstorm';
-    if (giftCount === 3) metaphorTitle = 'A traveler who lends their warmth to the tide';
-    else if (giftCount === 0) metaphorTitle = 'A night watchman sealing an ember in clay';
-    else if (history[0]?.offeredGift && !history[1]?.offeredGift) metaphorTitle = 'The few seconds of holding your breath underwater';
+    const cardLabel = (item: StageRecord | undefined) => item ? `${item.card.nameEn} (${item.orientation})` : 'an unrecorded card';
+    const choiceLabel = (item: StageRecord | undefined) => item?.offeredGift ? 'offered the gift' : 'kept the gift';
+    const encounterLabel = (item: StageRecord | undefined) => item?.encounterName || 'the unnamed encounter';
+    const responseLabel = (item: StageRecord | undefined) => {
+      if (!item) return 'No response was recorded.';
+      return item.card.encounter?.[item.offeredGift ? 'giftReactionOffered' : 'giftReactionKept'] || item.encounterDesc;
+    };
+    let metaphorTitle = 'A red ember carried through three kinds of weather';
+    if (giftCount === 3) metaphorTitle = 'The ember that never stopped moving';
+    else if (giftCount === 0) metaphorTitle = 'The ember kept beneath the coat';
+    else if (first?.offeredGift && second && !second.offeredGift) metaphorTitle = 'A hand opened, then closed around the light';
     return {
       metaphorTitle: `${metaphorTitle}: an inner map for ${topic}`,
-      situationReading: `In ${resolvedSituation}, the traveler’s choices show a repeated calibration between moving closer and protecting what matters. The issue may not be a lack of answers; it is the cost of investment, whether a response can be trusted, and which boundaries need to remain.`,
-      psychologicalInsight: 'The traveler may watch risk and the other side’s response before deciding whether to invest. This caution can protect you, but it can also make the desire for certainty feel like a condition for action. The pattern of giving and keeping suggests that the traveler is practicing how to bring the power to decide back from outside feedback.',
-      selfAwareness: 'The traveler may care less about making the perfect choice than about honoring a real need without letting fear decide. Notice whether you are expressing what you want or trying to avoid disappointment in advance.',
+      situationReading: `The journey begins with ${cardLabel(first)} at ${encounterLabel(first)}: you ${choiceLabel(first)}, and the encounter answers, “${responseLabel(first)}” That first exchange makes contact possible, but it also makes the cost of contact visible. In the middle, ${cardLabel(second)} brings you to ${encounterLabel(second)}, where you ${choiceLabel(second)}. The light is no longer being tested by distance; it is being tested by a limit. By the final scene, ${cardLabel(third)} meets ${encounterLabel(third)} and you ${choiceLabel(third)}. The return matters because the last offering is not the same as the first: it carries the memory of what you chose to protect. Read as a mirror, the arc is about learning whether closeness can remain real after you stop treating openness as an all-or-nothing act.`,
+      psychologicalInsight: `Your four scores give the arc a sharper shape: empathy ${scores.empathy}, insight ${scores.insight}, hesitation ${scores.hesitation}, and boundary ${scores.boundary}. Empathy and insight describe how clearly you register another presence; hesitation and boundary describe the price you attach to being affected by it. The middle decision to keep the gift can therefore be understood as a test: can the relationship or possibility remain there without immediate proof from you? When you offer again, the act is more deliberate because it follows that test. The numbers are narrative signals rather than a diagnosis, but their contrast points to a specific tension: you may understand what is happening before you feel safe enough to participate in it.`,
+      selfAwareness: 'Notice the exact moment when “I need to understand more” appears. Ask whether it is naming a real boundary, or quietly asking fear to postpone a choice that your empathy and insight have already made legible.',
       fallback: true,
       fallbackReason: 'The reading service is unavailable, so this local fallback reading is being shown.',
     };
@@ -132,13 +154,15 @@ function generatePoeticFallback(
       '旅者像是深潜时忽然屏住呼吸的那几个瞬间：外面的水压很大，海面上的喧嚣被完全滤掉，周围的世界忽然变得极其清晰。旅者曾豪迈地向外抛洒过热情，但在某个节点突然收束了缰绳。旅者不是退缩，而是突然学会了在湍急的暗流里稳住自己的重心，像一艘收起风帆但龙骨沉稳的静止之舟。';
   }
 
-  const journeyReflection = `第一程抽得【${c1.card.nameZh}】（${c1.orientation === 'upright' ? '顺位' : '逆位'}），旅者选择${c1.offeredGift ? '献出' : '保留'}了红色礼物；第二程遇【${c2.card.nameZh}】（${c2.orientation === 'upright' ? '顺位' : '逆位'}），旅者选择${c2.offeredGift ? '交付' : '收回'}；终程在【${c3.card.nameZh}】前，旅者完成了最后的抉择。每一次给予与保留，都在这片星海深处刻下了独属于你的力场纹理。`;
+  const encounterText = (item: StageRecord) => item.encounterName || item.encounterDesc;
+  const reactionText = (item: StageRecord) => item.card.encounter?.[item.offeredGift ? 'giftReactionOffered' : 'giftReactionKept'] || item.encounterDesc;
+  const journeyReflection = `第一程是【${c1.card.nameZh}】（${c1.orientation === 'upright' ? '顺位' : '逆位'}）与“${encounterText(c1)}”：你${c1.offeredGift ? '交付' : '保留'}礼物，回应是“${reactionText(c1)}”。第二程来到【${c2.card.nameZh}】（${c2.orientation === 'upright' ? '顺位' : '逆位'}）与“${encounterText(c2)}”：你${c2.offeredGift ? '再次交付' : '收回'}，让边界先说话。终程的【${c3.card.nameZh}】把这段迟疑带回到行动里，你${c3.offeredGift ? '再次交付' : '仍然保留'}，但它已不再是第一幕的同一个动作。四个维度留下的轨迹是：共情${scores.empathy}、洞察${scores.insight}、犹豫${scores.hesitation}、边界${scores.boundary}。`;
 
   return {
     metaphorTitle: `关于“${resolvedSituation}”的内在地图`,
     situationReading: `就“${resolvedSituation}”而言，旅者的选择呈现出一种在靠近与保护之间反复校准的过程。旅者并非缺少答案，而是在评估投入之后的代价、关系是否可靠，以及什么边界必须保留。`,
-    psychologicalInsight: `旅者可能会先观察风险和对方的回应，再决定是否投入。这种谨慎能保护你，也可能让你把等待确定感误当成行动前提。三次给予与保留显示，旅者正在练习把决定权从外部反馈拿回自己手中。`,
-    selfAwareness: `旅者真正重视的不是“做对选择”，而是既不背叛自己的需要，也不让恐惧替你做决定。可以留意：你是在表达真实意愿，还是在提前避免失望？`,
+    psychologicalInsight: `${journeyReflection} 这组分数进一步照亮了拉扯：共情${scores.empathy}与洞察${scores.insight}说明你并非看不见他者；犹豫${scores.hesitation}和边界${scores.boundary}则显示，真正困难的是决定何时让对方靠近。保留礼物像把火种护在掌心，交付礼物像承认火光必须离开掌心才会照见别处。这里的分数只是叙事线索，不是诊断。`,
+    selfAwareness: `留意那个“再确认一下”的瞬间：当共情和洞察已经足够，而犹豫仍在上升时，你是在保护一条必要的边界，还是在用准备的名义推迟被看见？`,
     fallback: true,
     fallbackReason: 'AI 解读接口不可用，已使用本地备用解读。',
   };
@@ -146,9 +170,10 @@ function generatePoeticFallback(
 
 // API endpoint to generate deep metaphorical interpretation
 app.post('/api/interpret', async (req, res) => {
-  const { stageHistory, language: requestedLanguage } = req.body as {
+  const { stageHistory, language: requestedLanguage, scores: requestedScores } = req.body as {
     stageHistory: StageRecord[];
     language?: string;
+    scores?: Partial<ReadingScores>;
   };
   const language: ReadingLanguage = requestedLanguage === 'en' ? 'en' : 'zh';
 
@@ -156,76 +181,58 @@ app.post('/api/interpret', async (req, res) => {
     return res.status(400).json({ error: 'Missing stageHistory data' });
   }
   const situation = deriveFocusSituation(stageHistory, language);
+  const scores = resolveReadingScores(requestedScores, stageHistory);
 
-  // If no Gemini key is provided, gracefully use the handcrafted poetic engine
+  // If no DeepSeek key is provided, gracefully use the handcrafted poetic engine
   if (!apiKey) {
-    const fallback = generatePoeticFallback(stageHistory, situation, language);
+    const fallback = generatePoeticFallback(stageHistory, situation, language, scores);
     return res.json(fallback);
   }
 
   try {
     const historySummary = stageHistory
       .map((item, idx) => {
+        const keyword = item.orientation === 'upright' ? (item.card.keywordUpright ?? item.card.keyword) : (item.card.keywordReversed ?? item.card.keyword);
+        const reaction = item.offeredGift ? (item.card.encounter?.giftReactionOffered ?? item.encounterDesc) : (item.card.encounter?.giftReactionKept ?? item.encounterDesc);
         if (language === 'en') {
-          return `Choice ${idx + 1}:\n- Tarot drawn: [${item.card.numeral} · ${item.card.nameEn}]\n- Encounter: ${item.encounterName}\n- Red gift: ${item.offeredGift ? '[offered]' : '[kept]'}\n- Final card orientation: [${item.orientation === 'upright' ? 'Upright' : 'Reversed'}]`;
+          return `Scene ${idx + 1} (${item.stageName ?? 'stage'}):\n- Tarot: [${item.card.numeral} · ${item.card.nameEn}]\n- Keyword in this orientation: ${keyword}\n- Encounter image: ${item.encounterName}\n- Scene description: ${item.encounterDesc}\n- Gift choice: ${item.offeredGift ? '[offered]' : '[kept]'}\n- Encounter response: ${reaction}\n- Final orientation: [${item.orientation === 'upright' ? 'Upright' : 'Reversed'}]`;
         }
         return `第${idx + 1}次选择：
 - 抽取塔罗：【${item.card.numeral} · ${item.card.nameZh} (${item.card.nameEn})】
+- 这一状态的关键词：${keyword}
 - 遇到造物：${item.encounterName}
+- 相遇场景：${item.encounterDesc}
 - 红色礼物选择：${item.offeredGift ? '【献出红色礼物】（促使卡牌逆向共鸣/转化）' : '【保留红色礼物，未给予】（守护内敛原质）'}
+- 造物回应：${reaction}
 - 最终卡牌呈现状态：【${item.orientation === 'upright' ? '顺位 (Upright)' : '逆位 (Reversed)'}】`;
       })
       .join('\n\n');
 
-    const prompt = language === 'en'
-      ? `You are a careful, warm guide for psychological self-reflection. Based on the player's first tarot choice and encounter, define the core issue they may be facing, then use all three choices to write grounded self-understanding rather than fiction, poetry, or prophecy.
+    const prompt = buildFinalReadingPrompt(language, situation, historySummary, scores);
 
-The initial issue suggested by the first card: ${situation}
-
-Player record:
-${historySummary}
-
-Requirements:
-1. Respond directly to the initial issue. Explain the central tension, possible psychological mechanisms, and how the choice pattern may shape judgment.
-2. Use clear, everyday, non-diagnostic psychological language. Do not classify the player or say they are a fixed type.
-3. Acknowledge uncertainty and separate observations, hypotheses, and facts. Do not treat tarot as scientific evidence.
-4. Do not provide an action plan or task list. Focus on understanding the situation and self-awareness.
-5. Write every value in the JSON in English. Return strict JSON with no markdown:
-{
-  "metaphorTitle": "a concise title for the situation",
-  "situationReading": "a 120-180 word reading of the situation",
-  "psychologicalInsight": "the traveler’s psychological mechanisms and choice pattern (120-180 words)",
-  "selfAwareness": "key psychological clues and self-awareness the traveler can notice (80-140 words)"
-}`
-      : `你是一位谨慎、温和的心理自我反思引导者。请根据玩家第一张塔罗牌的选择与相遇场景，对他此刻正在面对的核心议题做一个初步定性，再结合三次选择，把结果写成可验证的自我认知，而不是小说、诗歌或命运预言。
-
-第一张牌形成的初步议题：${situation}
-
-玩家记录：
-${historySummary}
-
-要求：
-1. 直接回应这个初步议题，说明处境中的关键拉扯、可能的心理机制，以及选择模式如何影响判断。
-2. 使用日常、清晰、非诊断性的心理学语言；不要做人格分类，不要使用 MBTI、星座或“你就是某种人”。
-3. 承认不确定性，区分观察、推测和事实；不要把塔罗当作科学证据。
-4. 不提供行动实验或任务清单，重点放在理解处境与自我认知。
-5. 严格返回 JSON，不要 markdown：
-{
-  "metaphorTitle": "一句简洁的事件主题标题",
-  "situationReading": "针对这件事的处境解读（120-180字）",
-  "psychologicalInsight": "旅者的心理机制与选择模式（120-180字）",
-  "selfAwareness": "旅者可以看见的关键心理线索与自我认知（80-140字）"
-}`
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
+    const response = await fetch(`${deepSeekBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
       },
+      body: JSON.stringify({
+        model: deepSeekModel,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+      }),
     });
 
-    const text = response.text || '';
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeepSeek request failed (${response.status}): ${errorText.slice(0, 300)}`);
+    }
+
+    const payload = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const text = payload.choices?.[0]?.message?.content || '';
     try {
       const parsed = JSON.parse(text);
       return res.json(parsed);
@@ -236,11 +243,11 @@ ${historySummary}
         const parsed = JSON.parse(jsonMatch[0]);
         return res.json(parsed);
       }
-      return res.json(generatePoeticFallback(stageHistory, situation, language));
+      return res.json(generatePoeticFallback(stageHistory, situation, language, scores));
     }
   } catch (error) {
-    console.error('Gemini API call failed, falling back to poetic engine:', error);
-    return res.json(generatePoeticFallback(stageHistory, situation, language));
+    console.error('DeepSeek API call failed, falling back to poetic engine:', error);
+    return res.json(generatePoeticFallback(stageHistory, situation, language, scores));
   }
 });
 

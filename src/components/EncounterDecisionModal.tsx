@@ -4,7 +4,7 @@ import { TarotCardDef } from '../types';
 import { TarotArtwork as TarotSymbol } from './TarotArtwork';
 import { audioService } from '../services/audioService';
 import { Gift, Shield, Sparkles, ArrowRight } from 'lucide-react';
-import { tarotGiftReaction } from '../i18n';
+import { copy, tarotGiftReaction } from '../i18n';
 
 interface EncounterDecisionModalProps {
   card: TarotCardDef;
@@ -12,6 +12,7 @@ interface EncounterDecisionModalProps {
   onDecision: (offeredGift: boolean) => void;
   onContinue: () => void;
   isOpen: boolean;
+  language?: 'zh' | 'en';
 }
 
 export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
@@ -20,6 +21,7 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
   onDecision,
   onContinue,
   isOpen,
+  language = 'en',
 }) => {
   const [decisionMade, setDecisionMade] = useState<boolean | null>(null);
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
@@ -56,7 +58,7 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
 
   const orientation = decisionMade === true ? 'reversed' : 'upright';
   const reactionText = tarotGiftReaction(
-    'zh',
+    language,
     card.id,
     decisionMade === true,
     decisionMade === true ? card.encounter.giftReactionOffered : card.encounter.giftReactionKept,
@@ -85,10 +87,10 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
             <span>DESTINY</span>
           </div>
           <h2 className="text-lg sm:text-xl md:text-2xl font-artistic text-white tracking-[0.08em] text-glow-sm">
-            {stage === 1 ? 'Encounter' : `Encounter ${stage}`}
+            {stage === 1 ? copy[language].encounterLabel : `${copy[language].encounterLabel} ${stage}`}
           </h2>
           <p className="text-xs sm:text-sm font-artistic text-white/70 mt-2 max-w-xl mx-auto leading-relaxed">
-            {stage === 1 ? 'A choice appears before the traveler.' : 'The journey responds to the choice you made.'}
+            {stage === 1 ? copy[language].encounterFirstHint : copy[language].encounterNextHint}
           </p>
         </div>
 
@@ -155,10 +157,10 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
               }`}
             />
             {decisionMade === null
-              ? '当前预设：顺位 (Upright)'
+              ? copy[language].presetUpright
               : decisionMade === true
-              ? '已受激翻转：逆位 (Reversed)'
-              : '坚守原质：顺位 (Upright)'}
+              ? copy[language].activatedReversed
+              : copy[language].heldUpright}
           </span>
         </div>
 
@@ -178,7 +180,7 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
                     献出礼物（翻转为逆位）
                   </div>
                   <div className="text-[10px] sm:text-[11px] font-artistic text-red-200/60">
-                    将心火与体温交付于它，促使卡牌翻转共鸣
+                    {copy[language].offerGiftDescription}
                   </div>
                 </div>
               </div>
@@ -198,7 +200,7 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
                     保留礼物，不给（保持顺位）
                   </div>
                   <div className="text-[10px] sm:text-[11px] font-artistic text-white/50">
-                    守护掌心的赤红微光，让卡牌维持自守初态
+                    {copy[language].keepGiftDescription}
                   </div>
                 </div>
               </div>
@@ -225,7 +227,7 @@ export const EncounterDecisionModal: React.FC<EncounterDecisionModalProps> = ({
               onClick={handleNext}
               className="group relative inline-flex items-center gap-2 py-2 px-6 rounded-[3px] bg-white/10 hover:bg-white/20 border border-white/30 hover:border-white/60 text-xs sm:text-sm font-artistic tracking-[0.14em] text-white transition-all cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.15)]"
             >
-              <span>{stage === 3 ? '启示已成 · 展开星海解读书卷' : `继续前行 · 开启第 ${stage + 1} 阶段`}</span>
+              <span>{stage === 3 ? copy[language].revealReading : copy[language].revealNextStage.replace('{stage}', String(stage + 1))}</span>
               <ArrowRight className="w-4 h-4 text-white/70 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </motion.div>

@@ -2,5 +2,5 @@
   "name": "Gift for Universe",
   "description": "A minimalist black-and-white cosmic interactive odyssey where a lone wanderer and a white steed stride across a celestial planet beneath realistic particle starfields.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_DEEPSEEK_API"]
 }

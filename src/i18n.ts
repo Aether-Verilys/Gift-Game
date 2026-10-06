@@ -1,6 +1,6 @@
 export type Language = 'zh' | 'en';
 
-import type { LLMInterpretation, TarotCardDef } from './types';
+import type { LLMInterpretation, PlayerStats, StageRecord, TarotCardDef } from './types';
 
 export const copy = {
   zh: {
@@ -80,6 +80,18 @@ export const copy = {
     unmute: '取消静音',
     roaming: '星海漫游',
     wheelZoom: '(滚轮缩放)',
+    startupPreparing: '正在准备旅途',
+    startupEntering: '即将进入旅途',
+    encounterLabel: '邂逅',
+    encounterFirstHint: '旅者面前出现了一个选择。',
+    encounterNextHint: '旅途回应了你做出的选择。',
+    presetUpright: '当前预设：顺位 (Upright)',
+    activatedReversed: '已受激翻转：逆位 (Reversed)',
+    heldUpright: '坚守原质：顺位 (Upright)',
+    offerGiftDescription: '将心火与体温交付于它，促使卡牌翻转共鸣',
+    keepGiftDescription: '守护掌心的赤红微光，让卡牌维持自守初态',
+    revealNextStage: '继续前行 · 开启第 {stage} 阶段',
+    revealReading: '启示已成 · 展开星海解读书卷',
   },
   en: {
     creditsMusic: 'Music: ',
@@ -158,10 +170,27 @@ export const copy = {
     unmute: 'Unmute',
     roaming: 'Star roaming',
     wheelZoom: '(scroll to zoom)',
+    startupPreparing: 'Preparing your journey',
+    startupEntering: 'Entering the journey',
+    encounterLabel: 'Encounter',
+    encounterFirstHint: 'A choice appears before the traveler.',
+    encounterNextHint: 'The journey responds to the choice you made.',
+    presetUpright: 'Current state: Upright',
+    activatedReversed: 'Gift accepted: Reversed',
+    heldUpright: 'Gift kept: Upright',
+    offerGiftDescription: 'Give your warmth to it and let the card resonate.',
+    keepGiftDescription: 'Keep the crimson light and let the card remain unchanged.',
+    revealNextStage: 'Continue onward · Begin stage {stage}',
+    revealReading: 'The omen is complete · Open the starfield reading',
   },
 } as const;
 
-export function localFallbackReading(language: Language, card?: Pick<TarotCardDef, 'nameEn' | 'nameZh'>): LLMInterpretation {
+export function localFallbackReading(
+  language: Language,
+  card?: Pick<TarotCardDef, 'nameEn' | 'nameZh'>,
+  history: StageRecord[] = [],
+  scores: PlayerStats = { empathy: 2, insight: 2, hesitation: 2, boundary: 2 },
+): LLMInterpretation {
   if (language === 'en') {
     const topic = card?.nameEn
       ? `the choice and self-positioning reflected by ${card.nameEn}`
@@ -169,8 +198,8 @@ export function localFallbackReading(language: Language, card?: Pick<TarotCardDe
     return {
       metaphorTitle: `An inner map for ${topic}`,
       situationReading: 'The traveler is repeatedly calibrating between moving closer and protecting what matters. The question may not be missing an answer; it is weighing the cost of investment, whether a response can be trusted, and which boundaries need to remain. The cards offer a perspective, not a substitute for facts or decisions.',
-      psychologicalInsight: 'The traveler may watch for risk and feedback before deciding whether to invest. That caution can create safety, but it can also turn the wish for certainty into a gate before action. Across three draws, the traveler is practicing how to bring the power to decide back from outside responses.',
-      selfAwareness: 'Notice whether you are expressing a real need or trying to avoid disappointment in advance. Separating those motives makes the next choice easier to understand.',
+      psychologicalInsight: `Across ${history.length || 3} scenes, offering and keeping the gift changed meaning: offering opened contact, while keeping it tested whether contact could respect a limit. Your four narrative signals are empathy ${scores.empathy}, insight ${scores.insight}, hesitation ${scores.hesitation}, and boundary ${scores.boundary}. The combination suggests that you can read another presence clearly while still slowing down when exposure feels costly. These numbers are reflective cues, not a diagnosis.`,
+      selfAwareness: 'Notice the moment when you ask for more certainty before naming what you want. Is the pause protecting a real boundary, or postponing the risk of being seen?',
       fallback: true,
       fallbackReason: 'The reading service is unavailable, so this local fallback reading is being shown.',
     };
@@ -182,8 +211,8 @@ export function localFallbackReading(language: Language, card?: Pick<TarotCardDe
   return {
     metaphorTitle: `关于${topic}的内在地图`,
     situationReading: '旅者正在靠近与保护之间反复校准。当前议题未必缺少答案，更像是在衡量投入的代价、回应是否可靠，以及哪些边界需要保留。牌面只能提供观察角度，不能替代现实中的事实与决定。',
-    psychologicalInsight: '旅者可能先观察风险与反馈，再决定是否投入。这种谨慎能带来安全感，也可能让等待确定感变成行动的门槛。三次开启显示，旅者正在练习把判断权从外部回应逐步拿回自己手中。',
-    selfAwareness: '可以留意：旅者此刻是在表达真实需要，还是在提前避免失望？把这两个动机分开，才能更清楚地理解下一次选择。',
+    psychologicalInsight: `三幕中，交付与保留的意义逐渐变化：交付打开接触，保留检验接触能否尊重边界。四个叙事维度是共情${scores.empathy}、洞察${scores.insight}、犹豫${scores.hesitation}、边界${scores.boundary}。这说明旅者可能看得见他者，却会在暴露成本升高时放慢脚步。它们只是反思线索，不是诊断。`,
+    selfAwareness: '留意那个“再确认一下”的瞬间：你是在保护必要的边界，还是用准备的名义推迟被看见？',
     fallback: true,
     fallbackReason: '解读接口暂时不可用，已使用本地备用解读。',
   };
