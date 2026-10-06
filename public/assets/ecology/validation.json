@@ -1,0 +1,156 @@
+[
+  {
+    "name": "bird",
+    "triangles": 18736,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1677952
+  },
+  {
+    "name": "crystal-reeds",
+    "triangles": 11175,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1142204
+  },
+  {
+    "name": "lantern-plant",
+    "triangles": 14970,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1309912
+  },
+  {
+    "name": "moon-rock",
+    "triangles": 9257,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1291160
+  },
+  {
+    "name": "mushroom",
+    "triangles": 12304,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 891180
+  },
+  {
+    "name": "planet",
+    "triangles": 18890,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1384496
+  },
+  {
+    "name": "spiral-fern",
+    "triangles": 17127,
+    "textures": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      },
+      {
+        "width": 1024,
+        "height": 1024,
+        "mimeType": "image/jpeg"
+      }
+    ],
+    "bytes": 1892796
+  }
+]

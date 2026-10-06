@@ -3,13 +3,15 @@ class AudioService {
   // Start silent so audio never begins unexpectedly; the player can enable it.
   private isMuted: boolean = true;
   private masterGain: GainNode | null = null;
-  private droneGain: GainNode | null = null;
+  private music: HTMLAudioElement | null = null;
+  private samples = new Map<string, AudioBuffer>();
+  private lastSampleTime = new Map<string, number>();
   private isInitialized: boolean = false;
 
   public init() {
     if (this.isInitialized && this.ctx) {
       if (this.ctx.state === 'suspended') {
-        this.ctx.resume();
+        void this.ctx.resume().catch(() => {});
       }
       return;
     }
@@ -22,54 +24,72 @@ class AudioService {
       this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.45, this.ctx.currentTime);
       this.masterGain.connect(this.ctx.destination);
 
-      this.startCosmicDrone();
+      this.startBackgroundMusic();
+      void this.loadSamples();
+      if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
       this.isInitialized = true;
     } catch {
       // AudioContext unavailable or blocked
     }
   }
 
-  private startCosmicDrone() {
+  private startBackgroundMusic() {
     if (!this.ctx || !this.masterGain) return;
+    // Stream the ten-minute track rather than decoding it into a large AudioBuffer.
+    this.music = new Audio(`${import.meta.env.BASE_URL}assets/audio/space-ambient-osmic.mp3`);
+    this.music.loop = true;
+    this.music.preload = 'none';
+    const musicGain = this.ctx.createGain();
+    musicGain.gain.value = 0.55;
+    this.ctx.createMediaElementSource(this.music).connect(musicGain);
+    musicGain.connect(this.masterGain);
+    if (!this.isMuted) void this.music.play().catch(() => {});
+  }
 
-    this.droneGain = this.ctx.createGain();
-    this.droneGain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+  private async loadSamples() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    await Promise.all(['card-flip', 'choice-confirm', 'starlight', 'footstep-1', 'footstep-2'].map(async (name) => {
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL}assets/audio/${name}.ogg`);
+        if (!response.ok) return;
+        this.samples.set(name, await ctx.decodeAudioData(await response.arrayBuffer()));
+      } catch {
+        // The existing synthesized cue remains available if a sample cannot load.
+      }
+    }));
+  }
 
-    // Deep sub drone
-    const subOsc = this.ctx.createOscillator();
-    subOsc.type = 'sine';
-    subOsc.frequency.setValueAtTime(55, this.ctx.currentTime); // A1 note
-
-    // Mid harmonic
-    const midOsc = this.ctx.createOscillator();
-    midOsc.type = 'sine';
-    midOsc.frequency.setValueAtTime(110.5, this.ctx.currentTime); // Slight detune for celestial shimmer
-
-    // High space hum
-    const highOsc = this.ctx.createOscillator();
-    highOsc.type = 'triangle';
-    highOsc.frequency.setValueAtTime(220.2, this.ctx.currentTime);
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(320, this.ctx.currentTime);
-
-    subOsc.connect(filter);
-    midOsc.connect(filter);
-    highOsc.connect(filter);
-
-    filter.connect(this.droneGain);
-    this.droneGain.connect(this.masterGain);
-
-    subOsc.start();
-    midOsc.start();
-    highOsc.start();
+  private playSample(name: string, volume: number, rate = 1): boolean {
+    if (this.isMuted || !this.ctx || !this.masterGain) return false;
+    const buffer = this.samples.get(name);
+    if (!buffer) return false;
+    const now = this.ctx.currentTime;
+    // Avoid stacked copies when a scene and its overlay report the same event.
+    if (now - (this.lastSampleTime.get(name) ?? -Infinity) < 0.1) return true;
+    this.lastSampleTime.set(name, now);
+    const source = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = rate;
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(this.masterGain);
+    source.onended = () => { source.disconnect(); gain.disconnect(); };
+    source.start();
+    return true;
   }
 
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
+    this.init();
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setTargetAtTime(this.isMuted ? 0 : 0.45, this.ctx.currentTime, 0.05);
+    }
+    if (this.isMuted) {
+      this.music?.pause();
+    } else {
+      void this.music?.play().catch(() => {});
     }
     return this.isMuted;
   }
@@ -105,6 +125,7 @@ class AudioService {
   }
 
   public playChoiceConfirm() {
+    if (this.playSample('choice-confirm', 0.22, 0.85)) return;
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
       const now = this.ctx.currentTime;
@@ -133,6 +154,7 @@ class AudioService {
   }
 
   public playHoofStep(isHorse: boolean = false) {
+    if (this.playSample(Math.random() > 0.5 ? 'footstep-1' : 'footstep-2', isHorse ? 0.16 : 0.1, isHorse ? 0.8 : 1)) return;
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
       const now = this.ctx.currentTime;
@@ -159,6 +181,7 @@ class AudioService {
   }
 
   public playStarlightChime() {
+    if (this.playSample('starlight', 0.18, 0.85)) return;
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
       const now = this.ctx.currentTime;
@@ -265,6 +288,7 @@ class AudioService {
   }
 
   public playTarotDraw() {
+    if (this.playSample('card-flip', 0.25, 0.8)) return;
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
       const now = this.ctx.currentTime;
@@ -293,6 +317,7 @@ class AudioService {
   }
 
   public playTarotFlip() {
+    if (this.playSample('card-flip', 0.3)) return;
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     try {
       const now = this.ctx.currentTime;

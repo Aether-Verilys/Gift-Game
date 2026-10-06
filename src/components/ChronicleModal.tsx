@@ -145,7 +145,15 @@ export const ChronicleModal: React.FC<ChronicleModalProps> = ({
           )}
         </div>
 
-        <div className="pt-4 border-t border-white/10 flex justify-end">
+        <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-4">
+          <div className="text-[10px] leading-relaxed text-white/45">
+            <span>{language === 'zh' ? '音乐：' : 'Music: '}</span>
+            <a className="underline hover:text-white" href="https://opengameart.org/content/space-ambient" target="_blank" rel="noreferrer">Space ambient — Osmic</a>
+            {' · '}<a className="underline hover:text-white" href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>
+            <br />
+            <span>{language === 'zh' ? '音效：Kenney（CC0） · ' : 'SFX: Kenney (CC0) · '}</span>
+            <a className="underline hover:text-white" href={`${import.meta.env.BASE_URL}assets/audio/CREDITS.md`} target="_blank" rel="noreferrer">{language === 'zh' ? '完整音频署名' : 'Full audio credits'}</a>
+          </div>
           <button
             id="close-chronicle-bottom-btn"
             onClick={onClose}

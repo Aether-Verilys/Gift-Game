@@ -255,21 +255,14 @@ export const ALL_TAROT_CARDS: TarotCardDef[] = [
   }
 ];
 
-// Helper to draw 3 distinct random cards for a stage
-export function drawThreeCards(excludedIds: string[] = []): TarotCardDef[] {
+// Draw one card for a stage. The player decides whether to open this card;
+// there is no longer a three-card spread to choose between.
+export function drawOneCard(excludedIds: string[] = []): TarotCardDef[] {
   const available = ALL_TAROT_CARDS.filter((c) => !excludedIds.includes(c.id));
   const shuffled = [...available].sort(() => 0.5 - Math.random());
-  const drawn = shuffled.slice(0, 3).map((card) => ({
+  const drawn = shuffled.slice(0, 1).map((card) => ({
     ...card,
     drawnOrientation: Math.random() < 0.45 ? ('reversed' as const) : ('upright' as const),
   }));
-
-  // Keep both polarities visible in every three-card spread so a spread never
-  // accidentally presents as three upright cards.
-  if (drawn.length > 1 && drawn.every((card) => card.drawnOrientation === 'upright')) {
-    drawn[0].drawnOrientation = 'reversed';
-  } else if (drawn.length > 1 && drawn.every((card) => card.drawnOrientation === 'reversed')) {
-    drawn[0].drawnOrientation = 'upright';
-  }
   return drawn;
 }

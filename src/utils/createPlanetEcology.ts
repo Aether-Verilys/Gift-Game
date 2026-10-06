@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 /**
  * Planet ecology: rocks, luminous flora, ruins, drifting
- * spores and flocks of birds.
+ * spores and a few birds flying close to the planet surface.
  *
  * Flora and rocks are InstancedMeshes sharing one rim-light shader
  * (wind sway + bioluminescent pulse on the GPU), so hundreds of plants cost
@@ -489,6 +489,7 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
       blending: THREE.AdditiveBlending,
     })
   );
+  spores.name = 'planet-spores';
   spores.frustumCulled = false;
   surface.add(spores);
 
@@ -519,29 +520,48 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
     speed: number;
     t: number;
     bob: number;
+    latitude: number;
+    orbitRadius: number;
   }
   const flocks: Flock[] = [];
-  const flockSpecs = [
-    // Orbits stay beyond the duo (-Z) so flocks never sweep across the camera.
-    { center: new THREE.Vector3(0, 16, -26), rx: 30, rz: 8, speed: 0.05, count: 7 },
-    { center: new THREE.Vector3(6, 22, -34), rx: 26, rz: 7, speed: -0.04, count: 5 },
-    { center: new THREE.Vector3(-8, 12, -18), rx: 18, rz: 6, speed: 0.065, count: 4 },
-  ];
+  // Keep the sky population sparse: one independently flying group of 1–3
+  // birds, hugging a randomized latitude just above the planet surface.
+  // The visible walking area is the upper cap of the sphere (around the
+  // apex). Keep the flight circle on that cap so birds do not disappear
+  // behind the planet on the far/lower hemisphere.
+  const flightRadius = Math.min(20, planetRadius * 0.34);
+  const flightHeight = -planetRadius + Math.sqrt(Math.max(0, planetRadius * planetRadius - flightRadius * flightRadius)) + 2.2;
+  const flockSpecs = [{
+    center: new THREE.Vector3(0, flightHeight, 0),
+    rx: flightRadius,
+    rz: flightRadius,
+    speed: (0.035 + rand() * 0.025) * (rand() > 0.5 ? 1 : -1),
+    count: 1 + Math.floor(rand() * 3),
+    latitude: (rand() - 0.5) * 0.08,
+  }];
   for (const spec of flockSpecs) {
-    const birds: Bird[] = [];
     for (let i = 0; i < spec.count; i++) {
       const group = new THREE.Group();
       const left = new THREE.Line(leftWingGeo, birdMat);
       const right = new THREE.Line(rightWingGeo, birdMat);
       group.add(left, right, new THREE.Line(bodyGeo, birdMat));
       group.scale.setScalar(range(0.8, 1.2));
-      // Loose V formation trailing behind the leader.
-      const rank = Math.ceil(i / 2);
-      const offset = new THREE.Vector3((i % 2 ? -1 : 1) * rank * 1.3, range(-0.3, 0.3), rank * 1.1);
       sky.add(group);
-      birds.push({ group, left, right, offset, phase: rand() * TAU });
+      // Every bird gets its own latitude, phase and pace so the small count
+      // reads as individual wildlife rather than a formation.
+      const bird: Bird = { group, left, right, offset: new THREE.Vector3(), phase: rand() * TAU };
+      flocks.push({
+        birds: [bird],
+        center: spec.center,
+        radiusX: spec.rx,
+        radiusZ: spec.rz,
+        speed: spec.speed * range(0.78, 1.18),
+        t: rand() * TAU,
+        bob: rand() * TAU,
+        latitude: spec.latitude + range(-0.03, 0.03),
+        orbitRadius: spec.rx + range(-0.5, 1.5),
+      });
     }
-    flocks.push({ birds, center: spec.center, radiusX: spec.rx, radiusZ: spec.rz, speed: spec.speed, t: rand() * TAU, bob: rand() * TAU });
   }
   const flockPos = new THREE.Vector3();
   const flockAhead = new THREE.Vector3();
@@ -551,12 +571,15 @@ export function createPlanetEcology(planetRadius: number, pixelRatio: number): P
   const flockRight = new THREE.Vector3();
   const birdOffset = new THREE.Vector3();
   const birdTarget = new THREE.Vector3();
-  const flockPoint = (f: Flock, t: number, out: THREE.Vector3) =>
+  const flockPoint = (f: Flock, t: number, out: THREE.Vector3) => {
+    const latitude = f.latitude + Math.sin(t * 2 + f.bob) * 0.035;
+    const cosLat = Math.cos(latitude);
     out.set(
-      f.center.x + Math.cos(t) * f.radiusX,
-      f.center.y + Math.sin(t * 2 + f.bob) * 1.6,
-      f.center.z + Math.sin(t) * f.radiusZ
+      f.center.x + Math.cos(t) * cosLat * f.orbitRadius,
+      f.center.y + Math.sin(latitude) * f.orbitRadius,
+      f.center.z + Math.sin(t) * cosLat * f.orbitRadius,
     );
+  };
 
   // ---- Public API --------------------------------------------------------------
   let clearAngle: number | null = null;

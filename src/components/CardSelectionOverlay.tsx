@@ -27,9 +27,9 @@ export const CardSelectionOverlay: React.FC<CardSelectionOverlayProps> = ({
     <AnimatePresence mode="wait">
       <motion.div
         key={`stage-selection-${stage}`}
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -16 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 w-full max-w-2xl z-40 pointer-events-none text-center px-4"
       >

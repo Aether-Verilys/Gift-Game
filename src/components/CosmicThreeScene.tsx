@@ -1,5 +1,8 @@
+import { createHorseAnimationController } from '../utils/horseAnimationController';
+import { createTravelerAnimationController } from '../utils/travelerAnimationController';
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { WalkPace, CameraView, EncounterData, GamePhase, TarotCardDef } from '../types';
 import { audioService } from '../services/audioService';
 import { createTarotFrontTexture, createTarotBackTexture } from '../utils/tarotCanvasTexture';
@@ -19,6 +22,7 @@ interface CosmicThreeSceneProps {
   encounterActive?: boolean;
   encounterType?: EncounterData['type'] | null;
   onApproachArrived?: () => void; // fired when the duo reaches the colossus
+  onCardArrived?: () => void; // fired when the duo reaches the ground card
   giftOffered?: boolean | null; // true: offered, false: kept
   onGiftDroppedOnEntity?: () => void;
   onRedObjectResonance?: (state: { isDragging: boolean; distance: number; resonanceLevel: number }) => void;
@@ -37,6 +41,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   encounterActive = false,
   encounterType = null,
   onApproachArrived,
+  onCardArrived,
   giftOffered = null,
   onGiftDroppedOnEntity,
   onRedObjectResonance,
@@ -57,6 +62,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   const encounterActiveRef = useRef<boolean>(encounterActive);
   const encounterTypeRef = useRef<EncounterData['type'] | null>(encounterType);
   const onApproachArrivedRef = useRef(onApproachArrived);
+  const onCardArrivedRef = useRef(onCardArrived);
   const giftOfferedRef = useRef<boolean | null>(giftOffered);
   const onGiftDroppedOnEntityRef = useRef(onGiftDroppedOnEntity);
   const onRedObjectResonanceRef = useRef(onRedObjectResonance);
@@ -98,6 +104,10 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
   useEffect(() => {
     stageRef.current = stage;
+    // Rebuild the fixed planet landmark after the stage ref changes. React's
+    // stageCards effect can run first during a transition, so refreshing here
+    // prevents stage two/three cards from keeping the previous stage angle.
+    updateCardsCallback.current?.(stageCardsRef.current);
   }, [stage]);
 
   useEffect(() => {
@@ -120,6 +130,10 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   useEffect(() => {
     onApproachArrivedRef.current = onApproachArrived;
   }, [onApproachArrived]);
+
+  useEffect(() => {
+    onCardArrivedRef.current = onCardArrived;
+  }, [onCardArrived]);
 
   useEffect(() => {
     giftOfferedRef.current = giftOffered;
@@ -289,6 +303,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     });
 
     const starField = new THREE.Points(starGeo, starShaderMaterial);
+    starField.name = 'star-field';
     scene.add(starField);
 
     // 4B. 3D Volumetric Floating Interstellar Dust Particles (Volumetric Parallax)
@@ -311,6 +326,8 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       );
     }
     cosmicDustGeo.setAttribute('position', new THREE.BufferAttribute(cosmicDustPos, 3));
+    // Fixed bounds cover every wrapped particle without scanning them each frame.
+    cosmicDustGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 28, 0), Math.hypot(60, 28, 55));
 
     // Custom smooth particle circular texture
     const dustCanvas = document.createElement('canvas');
@@ -334,6 +351,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       depthWrite: false,
     });
     const cosmicDustField = new THREE.Points(cosmicDustGeo, cosmicDustMat);
+    cosmicDustField.name = 'cosmic-dust-field';
     scene.add(cosmicDustField);
 
     // 4C. Interstellar Nebula Dust Clouds (Milky Way Volumetric Gaseous Ribbon)
@@ -363,6 +381,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       depthWrite: false,
     });
     const nebulaField = new THREE.Points(nebulaGeo, nebulaMat);
+    nebulaField.name = 'nebula-field';
     scene.add(nebulaField);
 
     // 5. Shooting Star System in 3D (Bolides with Ionization Wake)
@@ -391,6 +410,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       depthWrite: false,
     });
     const shootingHeadPoint = new THREE.Points(bolideHeadGeo, bolideHeadMat);
+    shootingHeadPoint.name = 'shooting-star-head';
     scene.add(shootingHeadPoint);
 
     let shootingActive = false;
@@ -450,7 +470,10 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     scene.add(celestialGroup);
 
     // 7. The Main 3D Planet Surface
-    const planetRadius = 45;
+    // Keep the walking world broad and readable around the duo. All surface
+    // landmarks, ecology, orbit paths and encounter anchors derive from this
+    // value, so changing it enlarges the planet as one consistent space.
+    const planetRadius = 70;
     const planetGroup = new THREE.Group();
     // Planet center is placed at (0, -planetRadius, 0), so the apex is at (0, 0, 0)
     planetGroup.position.set(0, -planetRadius, 0);
@@ -836,9 +859,95 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
     duoGroup.add(horseGroup);
 
+    // Keep the procedural horse until the saddled, skinned asset is ready.
+    let horseAnimation: ReturnType<typeof createHorseAnimationController> | null = null;
+    let loadedHorse: THREE.Object3D | null = null;
+    let horseDisposed = false;
+    const disposeCharacter = (root: THREE.Object3D) => {
+      const materials = new Set<THREE.Material>();
+      const textures = new Set<THREE.Texture>();
+      root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        if (object instanceof THREE.SkinnedMesh) object.skeleton.dispose();
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+          materials.add(material);
+          for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value);
+        }
+      });
+      textures.forEach((texture) => texture.dispose());
+      materials.forEach((material) => material.dispose());
+    };
+    new GLTFLoader().load('/assets/horse/horse.glb', (gltf) => {
+      if (horseDisposed) { disposeCharacter(gltf.scene); return; }
+      loadedHorse = gltf.scene;
+      try {
+        horseAnimation = createHorseAnimationController(loadedHorse, gltf.animations);
+      } catch (error) {
+        console.warn('Horse animation unavailable; retaining animated fallback.', error);
+        disposeCharacter(loadedHorse);
+        loadedHorse = null;
+        return;
+      }
+      // Normalize the imported model in a wrapper: animation tracks keep their
+      // authored transforms, and the horse faces the journey's -Z direction.
+      const horseMount = new THREE.Group();
+      horseMount.add(loadedHorse);
+      horseMount.rotation.y = Math.PI;
+      horseMount.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(horseMount, true);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      const scale = 3.2 / Math.max(size.y, 0.001);
+      horseMount.scale.setScalar(scale);
+      horseMount.position.set(-0.65 - center.x * scale, -bounds.min.y * scale, -center.z * scale);
+      horseGroup.visible = false;
+      duoGroup.add(horseMount);
+    }, undefined, (error) => {
+      console.warn('Saddled horse failed to load; using fallback horse.', error);
+    });
+
     // 8B. The Wanderer (Human Figure)
     const humanGroup = new THREE.Group();
     humanGroup.position.set(0.95, 0, -0.1); // walks beside the horse
+
+    // Mixamo bone names match, but the imported rigs have different bind axes
+    // and units. Convert the clips while keeping the traveler's proportions.
+    let travelerAnimation: ReturnType<typeof createTravelerAnimationController> | null = null;
+    let travelerModel: THREE.Object3D | null = null;
+    let travelerDisposed = false;
+    new GLTFLoader().load('/assets/traveler.glb', (gltf) => {
+      if (travelerDisposed) { disposeCharacter(gltf.scene); return; }
+      travelerModel = gltf.scene;
+      const wrapper = new THREE.Group();
+      wrapper.add(travelerModel);
+      wrapper.rotation.y = Math.PI;
+      wrapper.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(wrapper, true);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      // Match the procedural wanderer's height before the shared duo scale.
+      const scale = 2.15 / Math.max(size.y, 0.001);
+      wrapper.scale.setScalar(scale);
+      wrapper.position.set(0.95 - center.x * scale, -bounds.min.y * scale, -0.1 - center.z * scale);
+      humanGroup.visible = false;
+      duoGroup.add(wrapper);
+      new GLTFLoader().load('/assets/traveler/Soldier.glb', (library) => {
+        try {
+          if (!travelerDisposed) {
+            travelerAnimation = createTravelerAnimationController(gltf.scene, library.scene, library.animations);
+          }
+        } catch (error) {
+          console.warn('Mixamo Walk/Idle conversion failed; traveler remains static.', error);
+        } finally {
+          disposeCharacter(library.scene);
+        }
+      }, undefined, (error) => {
+        if (!travelerDisposed) console.warn('Mixamo Walk/Idle clips failed to load; traveler remains static.', error);
+      });
+    }, undefined, (error) => {
+      if (!travelerDisposed) console.warn('Mixamo traveler failed to load; using procedural fallback.', error);
+    });
 
     const humanLineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
     const capeSoftMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
@@ -1015,6 +1124,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       depthWrite: false,
     });
     const dustPoints = new THREE.Points(dustGeo, dustMat);
+    dustPoints.name = 'footstep-dust';
     scene.add(dustPoints);
 
     // -------------------------------------------------------------
@@ -1092,6 +1202,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       depthWrite: false,
     });
     const redSparksField = new THREE.Points(redSparksGeo, redSparksMat);
+    redSparksField.name = 'crimson-sparks';
     redObjectGroup.add(redSparksField);
 
     // 4. Dynamic PointLight inside the Red Object
@@ -1154,43 +1265,21 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     encounterRootGroup.visible = false;
     planetGroup.add(encounterRootGroup);
     const planetXAxis = new THREE.Vector3(1, 0, 0);
-    let encounterShownType: string | null = null;
+    let encounterShownType: EncounterData['type'] | null = null;
     let encounterAnchor = 0; // planet-local angle of the colossus
     let encounterLift = -1; // 0 = standing on the surface, -1 = fully sunk
     let encounterSinkTimer = -1;
 
-    const encounterSubGroups: Record<string, THREE.Group> = createTarotEntities();
-    const encounterClearRadius: Record<string, number> = {};
-    // Gift offering is rendered on the colossus surface itself (see giftOfferingShader).
     const giftOffering = createGiftOfferingEffect();
+    const tarotEntities = createTarotEntities({ planetRadius, applyOffering: giftOffering.apply });
+    const encounterSubGroups = tarotEntities.groups;
+    const encounterClearRadius = tarotEntities.clearRadius;
+    for (const monument of new Set(Object.values(encounterSubGroups))) {
+      encounterRootGroup.add(monument);
+    }
     const monumentLight = new THREE.DirectionalLight(0xe4eaff, 2.4);
     monumentLight.position.set(20, 45, 25);
     scene.add(monumentLight);
-
-    // Double the previous 22 / 24 unit envelope, keeping each solid model grounded.
-    for (const [type, model] of Object.entries(encounterSubGroups)) {
-      const bounds = new THREE.Box3().setFromObject(model);
-      const size = bounds.getSize(new THREE.Vector3());
-      const scale = Math.min(44 / size.y, 48 / Math.max(size.x, size.z));
-      model.scale.setScalar(scale);
-      model.position.y = 0.5 - bounds.min.y * scale;
-      // Patch only the sculpture; the foundation shares materials with the horse.
-      giftOffering.apply(model);
-      const monument = new THREE.Group();
-      monument.add(model);
-      const radius = Math.max(size.x, size.z) * scale * 0.55;
-      // Embed the foundation into the curved ground, rather than float on it.
-      const foundationGeo = new THREE.CylinderGeometry(radius, radius, 1.4 + radius * radius / planetRadius, 48);
-      const foundation = new THREE.Mesh(foundationGeo, blackFillMat);
-      foundation.position.y = 0.5 - foundationGeo.parameters.height / 2;
-      const foundationEdges = new THREE.LineSegments(new THREE.EdgesGeometry(foundationGeo), horseSoftMat);
-      foundationEdges.position.copy(foundation.position);
-      monument.add(foundation, foundationEdges);
-      encounterSubGroups[type] = monument;
-      // Angular footprint, used to clear plants and ruins around the colossus.
-      encounterClearRadius[type] = radius / planetRadius + 0.1;
-      encounterRootGroup.add(monument);
-    }
 
     // -------------------------------------------------------------
     // 10A. Encounter Sweeping Light Effect (扫光)
@@ -1227,6 +1316,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       depthWrite: false,
     });
     const burstSparkPoints = new THREE.Points(burstSparkGeo, burstSparkMat);
+    burstSparkPoints.name = 'crimson-burst';
     scene.add(burstSparkPoints);
 
     let burstActive = false;
@@ -1272,13 +1362,15 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     };
 
     // -------------------------------------------------------------
-    // 10B. Celestial 3D Tarot Cards in the Upper Cosmic Sky
-    // Materializes during 'card_selection' phase in distant view.
+    // 10B. Tarot card resting on the planet surface.
+    // The player walks into it to open the journey.
     // -------------------------------------------------------------
     const cardsSkyGroup = new THREE.Group();
     cardsSkyGroup.position.set(0, 0, 0);
     cardsSkyGroup.visible = false;
-    scene.add(cardsSkyGroup);
+    // The card is a planet landmark, so it remains fixed to the ground while
+    // the planet rotates beneath the walking duo.
+    planetGroup.add(cardsSkyGroup);
 
     interface Card3DItem {
       group: THREE.Group;
@@ -1310,17 +1402,29 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
       if (!cards || cards.length === 0) return;
 
+      // A single card stands upright on the ground like a doorway just ahead
+      // of the duo, with its face turned toward the approach direction.
       const cardSpreadConfigs = [
-        { pos: new THREE.Vector3(-5.8, 8.2, 0.0), rot: new THREE.Euler(0, 0.18, 0.04) },
-        { pos: new THREE.Vector3(0.0, 8.6, 0.8), rot: new THREE.Euler(0, 0.0, 0.0) },
-        { pos: new THREE.Vector3(5.8, 8.2, 0.0), rot: new THREE.Euler(0, -0.18, -0.04) },
+        // BoxGeometry is centered on its origin. With the final 2.4x scale,
+        // half the card height is 7.92, so place its center at planetRadius
+        // plus that half-height to make the bottom edge touch the ground.
+        { pos: new THREE.Vector3(0.0, planetRadius + 7.92, 0.0), rot: new THREE.Euler(0.0, 0.0, 0.0) },
       ];
+      // Counter-rotate the local anchor so the card reaches the apex exactly
+      // halfway through its stage leg as the planet turns.
+      const stageLeg = Math.PI * 2 / 4;
+      // Counter-rotate the landmark against the planet turn so each card
+      // arrives at the apex/front of the walking route for its stage.
+      cardsSkyGroup.rotation.x = -(Math.max(1, Math.min(3, stageRef.current)) - 1) * stageLeg - stageLeg / 2;
 
-      cards.slice(0, 3).forEach((cardDef, idx) => {
-        const config = cardSpreadConfigs[idx] || cardSpreadConfigs[1];
+      cards.slice(0, 1).forEach((cardDef, idx) => {
+        const config = cardSpreadConfigs[idx] || cardSpreadConfigs[0];
         const cardGroup = new THREE.Group();
         cardGroup.position.copy(config.pos);
         cardGroup.rotation.copy(config.rot);
+        // This is already the final doorway scale; opening it should never
+        // make the card grow toward the player.
+        cardGroup.scale.setScalar(2.4);
 
         const frontTex = createTarotFrontTexture(cardDef, idx, false, languageRef.current);
         const backTex = createTarotBackTexture();
@@ -1371,7 +1475,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           initialRot: config.rot.clone(),
           targetPos: config.pos.clone(),
           targetRot: config.rot.clone(),
-          targetScale: 1.0,
+          targetScale: 2.4,
           isHovered: false,
           isSelected: false,
           spinProgress: 0,
@@ -1389,31 +1493,6 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       setTimeout(() => {
         onSelectCardRef.current?.(selectedItem.cardDef);
       }, 1450);
-    };
-
-    const getCardSlotWorldTarget = () => {
-      const viewportWidth = renderer.domElement.clientWidth || window.innerWidth;
-      const viewportHeight = renderer.domElement.clientHeight || window.innerHeight;
-      const isSmall = viewportWidth < 640;
-      const slotWidth = isSmall ? 56 : 64;
-      const slotGap = isSmall ? 8 : 10;
-      const slotCenterX = 24 + slotWidth / 2 + (Math.max(1, Math.min(3, stageRef.current)) - 1) * (slotWidth + slotGap);
-      const slotCenterY = 88;
-      const ndcX = (slotCenterX / viewportWidth) * 2 - 1;
-      const ndcY = 1 - (slotCenterY / viewportHeight) * 2;
-      const distance = 18;
-      const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance;
-      const halfWidth = halfHeight * camera.aspect;
-      const direction = new THREE.Vector3();
-      const right = new THREE.Vector3();
-      const up = new THREE.Vector3();
-      camera.getWorldDirection(direction);
-      right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
-      up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
-      return camera.position.clone()
-        .add(direction.multiplyScalar(distance))
-        .add(right.multiplyScalar(ndcX * halfWidth))
-        .add(up.multiplyScalar(ndcY * halfHeight));
     };
 
     // Initialize 3D cards from current ref
@@ -1441,7 +1520,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       raycaster.setFromCamera(pointer, camera);
 
       // Check click on 3D Tarot Cards in Sky
-      if (gamePhaseRef.current === 'card_selection' && cards3DList.length > 0) {
+      if (gamePhaseRef.current === 'card_selection' && cardArrived && cards3DList.length > 0) {
         const hitboxes = cards3DList.map((c) => c.hitbox);
         const cardHits = raycaster.intersectObjects(hitboxes);
         if (cardHits.length > 0) {
@@ -1495,7 +1574,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       raycaster.setFromCamera(pointer, camera);
 
       // 3D Card Hover Detection in Sky
-      if (gamePhaseRef.current === 'card_selection' && cards3DList.length > 0) {
+      if (gamePhaseRef.current === 'card_selection' && cardArrived && cards3DList.length > 0) {
         const hitboxes = cards3DList.map((c) => c.hitbox);
         const cardHits = raycaster.intersectObjects(hitboxes);
         if (cardHits.length > 0) {
@@ -1531,7 +1610,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           desired.z = THREE.MathUtils.clamp(desired.z, -32, 32);
           redTargetPos.copy(desired);
 
-          const monument = encounterSubGroups[encounterTypeRef.current || ''];
+          const monument = encounterTypeRef.current ? encounterSubGroups[encounterTypeRef.current] : undefined;
           offerPrimeTarget =
             gamePhaseRef.current === 'encounter_decision' && monument?.visible &&
             raycaster.intersectObject(monument, true).length > 0 ? 1 : 0.35;
@@ -1585,7 +1664,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           const rect = renderer.domElement.getBoundingClientRect();
           pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
           raycaster.setFromCamera(pointer, camera);
-          const monument = encounterSubGroups[encounterTypeRef.current || ''];
+          const monument = encounterTypeRef.current ? encounterSubGroups[encounterTypeRef.current] : undefined;
           // Use the visible silhouette, not distance to the old tiny pivot.
           if (monument && raycaster.intersectObject(monument, true).length > 0) {
             triggerGiftOffering();
@@ -1599,27 +1678,10 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
 
-    // One solitary wireframe bird circles the planet on a tilted great-circle
-    // path. Its direction is randomized once per visit, so it never reads as
-    // a synchronized flock or a background screen-space decoration.
-    const birdMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72 });
-    const bird = new THREE.Group();
-    const wingGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-0.48, 0, 0), new THREE.Vector3(0, 0.14, -0.08), new THREE.Vector3(0.48, 0, 0),
-    ]);
-    bird.add(new THREE.Line(wingGeo, birdMat));
-    bird.scale.setScalar(0.72);
-    scene.add(bird);
-    const birdCenter = new THREE.Vector3(0, -planetRadius, 0);
-    const birdOrbitRadius = planetRadius + 3.6;
-    const birdInclination = 0.12 + Math.random() * 0.08;
-    const birdDirection = Math.random() > 0.5 ? 1 : -1;
-    const birdPhase = Math.random() * Math.PI * 2;
-    const birdSpeed = (0.12 + Math.random() * 0.08) * birdDirection;
-
     // 11. Animation Render Loop
     let animId: number;
-    let clock = new THREE.Clock();
+    const timer = new THREE.Timer();
+    timer.connect(document);
     let walkCycle = 0;
     let lastStepTime = 0;
     let shootingStarTimer = 0;
@@ -1631,6 +1693,9 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     let prevPhase: GamePhase | null = null;
     // The lap is split into four equal legs: gate → colossus 1 → 2 → 3 → gate.
     const LEG = TAU / 4;
+    // Stop before the card, leaving a readable gap between the duo and its
+    // doorway. The angular offset is converted by the planet radius.
+    const CARD_STOP_ANGLE = -0.1;
     const legDuration = 6; // seconds per leg, regardless of how far the duo strolled
     const legEaseShare = 0.3; // final share of each leg spent slowing into the stop
     // Time of the cruise+ease curve below is 1.569 * distance / cruise.
@@ -1646,6 +1711,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
     };
     let legTarget = 0; // planet rotation where the current leg ends
     let approachArrived = false;
+    let cardArrived = false;
     let homecomingDone = false;
     let gateLift = 0;
     let lapBase = 0; // planet rotation where the current lap began
@@ -1653,35 +1719,19 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const dt = Math.min(clock.getDelta(), 0.1);
-      const elapsed = clock.getElapsedTime();
-
-      const birdAngle = elapsed * birdSpeed + birdPhase;
-      const cosAngle = Math.cos(birdAngle);
-      const sinAngle = Math.sin(birdAngle);
-      const orbitY = Math.sin(birdInclination) * sinAngle;
-      const orbitZ = Math.cos(birdInclination) * sinAngle;
-      const birdPosition = birdCenter.clone().add(new THREE.Vector3(
-        birdOrbitRadius * cosAngle,
-        birdOrbitRadius * orbitY,
-        birdOrbitRadius * orbitZ,
-      ));
-      const tangent = new THREE.Vector3(
-        -Math.sin(birdAngle),
-        Math.sin(birdInclination) * cosAngle,
-        Math.cos(birdInclination) * cosAngle,
-      ).multiplyScalar(birdDirection);
-      bird.position.copy(birdPosition);
-      bird.rotation.y = Math.atan2(tangent.x, tangent.z);
-      bird.rotation.x = -Math.atan2(tangent.y, Math.max(0.001, Math.hypot(tangent.x, tangent.z)));
-      const flap = 0.82 + Math.abs(Math.sin(elapsed * 5.4)) * 0.24;
-      bird.scale.set(0.72, flap * 0.72, 0.72);
+      timer.update();
+      const rawDt = timer.getDelta();
+      const dt = Number.isFinite(rawDt) ? Math.min(Math.max(rawDt, 0), 0.1) : 0;
+      const elapsed = timer.getElapsed();
 
       // Mouse smoothing
       mouse.x += (mouse.targetX - mouse.x) * 0.05;
       mouse.y += (mouse.targetY - mouse.y) * 0.05;
 
       const phase = gamePhaseRef.current;
+      // Begin fetching while the current card is still on the ground.
+      for (const card of stageCardsRef.current) tarotEntities.load(card.encounter.type);
+      if (encounterTypeRef.current) tarotEntities.load(encounterTypeRef.current);
       if (stageRef.current < prevStage) {
         // Restarted mid-lap: begin a fresh lap from where the duo stands.
         lapBase = planetGroup.rotation.x;
@@ -1689,7 +1739,11 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       }
       prevStage = stageRef.current;
       if (phase !== prevPhase) {
-        if (phase === 'approaching') {
+        if (phase === 'card_selection') {
+          const stageBase = Math.max(0, Math.min(2, stageRef.current - 1)) * LEG;
+          beginLeg(lapBase + stageBase + LEG / 2 + CARD_STOP_ANGLE);
+          cardArrived = false;
+        } else if (phase === 'approaching') {
           // Each colossus waits at its own quarter of the lap, buried until
           // the duo draws near.
           beginLeg(lapBase + Math.min(3, stageRef.current) * LEG);
@@ -1725,7 +1779,17 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         const v = cruise * THREE.MathUtils.clamp(remaining / (legSpan * legEaseShare), 0.15, 1);
         return Math.min(legTarget, prevRot + v * dt);
       };
-      if (phase === 'approaching') {
+      if (phase === 'card_selection') {
+        // Card approach follows the actual walking pace. It can take as long
+        // as the player wants; no fixed-duration easing controls this leg.
+        nextRot = prevRot + dt * walkRotSpeed * paceMult;
+        nextRot = Math.min(legTarget, nextRot);
+        if (!cardArrived && legTarget - nextRot < 1e-4) {
+          cardArrived = true;
+          paceRef.current = 'pause';
+          onCardArrivedRef.current?.();
+        }
+      } else if (phase === 'approaching') {
         nextRot = legStep(legCruise);
         if (!approachArrived && legTarget - nextRot < 1e-4) {
           approachArrived = true;
@@ -1759,9 +1823,13 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       originGate.visible = gateLift > 0.001;
 
       // Gait follows the actual ground speed so feet never skate.
-      const groundMult = THREE.MathUtils.clamp(groundStep / dt / walkRotSpeed, 0, 3.4);
+      const groundMult = dt > 1e-6
+        ? THREE.MathUtils.clamp(groundStep / dt / walkRotSpeed, 0, 3.4)
+        : 0;
       gaitMult = THREE.MathUtils.lerp(gaitMult, groundMult, 0.12);
       const speedMult = gaitMult < 0.02 ? 0 : gaitMult;
+      horseAnimation?.update(dt, groundMult);
+      travelerAnimation?.update(dt, groundMult);
 
       // Advance walk cycle
       walkCycle += dt * 3.6 * speedMult;
@@ -1820,6 +1888,20 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
         let px = cosmicDustPos[i * 3];
         let py = cosmicDustPos[i * 3 + 1];
         let pz = cosmicDustPos[i * 3 + 2];
+
+        // Recover a particle if an invalid value ever enters the simulation.
+        if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) {
+          px = (Math.random() - 0.5) * 120;
+          py = Math.random() * 55 + 1;
+          pz = (Math.random() - 0.5) * 110;
+          cosmicDustPos[i * 3] = px;
+          cosmicDustPos[i * 3 + 1] = py;
+          cosmicDustPos[i * 3 + 2] = pz;
+          cosmicDustVel[i].set(0, 0, 0);
+        }
+        if (!Number.isFinite(cosmicDustVel[i].x) || !Number.isFinite(cosmicDustVel[i].y) || !Number.isFinite(cosmicDustVel[i].z)) {
+          cosmicDustVel[i].set(0, 0, 0);
+        }
 
         // Gravitational influence from Red Object
         const dx = rx - px;
@@ -1918,9 +2000,8 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       }
       encounterRootGroup.visible = encounterShownType !== null;
       if (encounterShownType) {
-        Object.keys(encounterSubGroups).forEach((k) => {
-          encounterSubGroups[k].visible = k === encounterShownType;
-        });
+        for (const monument of Object.values(encounterSubGroups)) monument.visible = false;
+        encounterSubGroups[encounterShownType as EncounterData['type']].visible = true;
         const r = planetRadius + encounterLift * encounterSinkDepth;
         encounterRootGroup.position.set(0, r * Math.cos(encounterAnchor), r * Math.sin(encounterAnchor));
         encounterRootGroup.quaternion.setFromAxisAngle(planetXAxis, encounterAnchor);
@@ -2019,44 +2100,33 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       }
 
       // 3D Tarot Cards in Sky Animation Loop
-      if (gamePhaseRef.current === 'card_selection') {
+      if (gamePhaseRef.current === 'card_selection' || gamePhaseRef.current === 'approaching') {
         cardsSkyGroup.visible = true;
         const anyCardSelected = cards3DList.some((c) => c.isSelected);
 
         cards3DList.forEach((item) => {
           if (item.isSelected) {
-            item.spinProgress += dt * 5.2;
-            item.group.rotation.y = item.initialRot.y + item.spinProgress * Math.PI * 2;
-            const flightProgress = THREE.MathUtils.smoothstep(Math.min(item.spinProgress / 5.2, 1), 0, 1);
-            const target = getCardSlotWorldTarget();
-            item.group.position.lerp(target, 0.06 + flightProgress * 0.04);
-            const vanishProgress = THREE.MathUtils.smoothstep(Math.max(0, (flightProgress - 0.68) / 0.32), 0, 1);
-            const selectedScale = THREE.MathUtils.lerp(1.0, 0.02, flightProgress);
-            item.group.scale.lerp(new THREE.Vector3(selectedScale, selectedScale, selectedScale), 0.08);
-            const cardOpacity = 1 - vanishProgress;
-            const cardMaterials = Array.isArray(item.mesh.material) ? item.mesh.material : [item.mesh.material];
-            cardMaterials.forEach((material) => {
-              const cardMaterial = material as THREE.MeshStandardMaterial;
-              cardMaterial.transparent = true;
-              cardMaterial.opacity = cardOpacity;
-            });
-            (item.borderLines.material as THREE.LineBasicMaterial).opacity = cardOpacity;
-            item.hitbox.visible = cardOpacity > 0.05;
+            // Walk into the card: it stays an upright, fixed-size doorway as
+            // the planet carries the duo through it.
+            item.spinProgress = Math.min(1, item.spinProgress + dt / 1.45);
+            item.group.rotation.copy(item.initialRot);
+            item.group.position.copy(item.initialPos);
+            item.group.scale.setScalar(2.4);
+            (item.borderLines.material as THREE.LineBasicMaterial).opacity = 1;
+            item.hitbox.visible = false;
           } else if (anyCardSelected) {
-            item.group.scale.lerp(new THREE.Vector3(0, 0, 0), 0.12);
-            item.group.position.y -= dt * 3.0;
+            item.group.visible = false;
           } else {
-            const bob = Math.sin(elapsed * 2.2 + item.index * 1.4) * 0.12;
             if (item.isHovered) {
-              item.targetPos.set(item.initialPos.x, item.initialPos.y + bob, item.initialPos.z + 1.8);
-              item.targetRot.set(0, 0, item.initialRot.z);
-              item.targetScale = 1.08;
+              item.targetPos.copy(item.initialPos);
+              item.targetRot.copy(item.initialRot);
+              item.targetScale = 2.52;
               (item.borderLines.material as THREE.LineBasicMaterial).color.setHex(0xfff0aa);
               (item.borderLines.material as THREE.LineBasicMaterial).opacity = 1.0;
             } else {
-              item.targetPos.set(item.initialPos.x, item.initialPos.y + bob, item.initialPos.z);
+              item.targetPos.copy(item.initialPos);
               item.targetRot.copy(item.initialRot);
-              item.targetScale = 1.0;
+              item.targetScale = 2.4;
               (item.borderLines.material as THREE.LineBasicMaterial).color.setHex(0xc8b273);
               (item.borderLines.material as THREE.LineBasicMaterial).opacity = 0.7;
             }
@@ -2068,7 +2138,9 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
           }
         });
       } else {
-        cardsSkyGroup.visible = false;
+        // Keep the card visible briefly while the player walks through it;
+        // it is hidden naturally after the selection animation completes.
+        cardsSkyGroup.visible = cards3DList.some((c) => c.isSelected);
       }
 
       // Camera Position dynamically steered by Game Phase and Perspective
@@ -2076,9 +2148,10 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
       const lookTarget = new THREE.Vector3();
 
       if (gamePhaseRef.current === 'card_selection') {
-        // Distant panoramic celestial view (远景) when choosing cards in the sky
-        targetCam.set(mouse.x * 2.0, 9.8 + mouse.y * 1.5, 22.0);
-        lookTarget.set(0, 8.4, 0);
+        // Pull back for the card encounter: show the full doorway, the gap
+        // where the duo stops, and enough ground to make the approach legible.
+        targetCam.set(8.5 + mouse.x * 1.4, 7.2 + mouse.y * 0.9, 19.5);
+        lookTarget.set(0, 2.6, -4.8);
       } else if (gamePhaseRef.current === 'approaching' || gamePhaseRef.current === 'encounter_decision') {
         // Crane up and back (拉远+升高) as the colossus rises, so the duo and
         // the whole monument share the frame for the gift.
@@ -2256,7 +2329,17 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
 
     // 13. Cleanup
     return () => {
+      tarotEntities.dispose();
+      horseDisposed = true;
+      travelerDisposed = true;
+      travelerAnimation?.dispose();
+      if (travelerModel) disposeCharacter(travelerModel);
+      horseAnimation?.dispose();
+      if (loadedHorse) {
+        disposeCharacter(loadedHorse);
+      }
       cancelAnimationFrame(animId);
+      timer.dispose();
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);

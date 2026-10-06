@@ -76,7 +76,7 @@ export interface LLMInterpretation {
 }
 
 export type GamePhase =
-  | 'card_selection'           // 选一张塔罗牌（三选一）
+  | 'card_selection'           // 开启唯一的塔罗牌
   | 'approaching'              // 角色走过去
   | 'encounter_decision'        // 遇到那个东西，把红色礼物给它或者不给
   | 'card_resolution'          // 给予礼物翻转塔罗的顺位或逆位

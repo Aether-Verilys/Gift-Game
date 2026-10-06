@@ -9,7 +9,7 @@ import { TopBar } from './components/TopBar';
 import { ChronicleModal } from './components/ChronicleModal';
 import { TarotCollectionModal } from './components/TarotCollectionModal';
 import { StageProgressHeader } from './components/StageProgressHeader';
-import { ALL_TAROT_CARDS, drawThreeCards } from './data/tarotDeck';
+import { ALL_TAROT_CARDS, drawOneCard } from './data/tarotDeck';
 import {
   TarotCardDef,
   StageRecord,
@@ -43,7 +43,7 @@ export default function App() {
     return {
       metaphorTitle: `关于${topic}的内在地图`,
       situationReading: `旅者正在靠近与保护之间反复校准。当前议题未必缺少答案，更像是在衡量投入的代价、回应是否可靠，以及哪些边界需要保留。牌面只能提供观察角度，不能替代现实中的事实与决定。`,
-      psychologicalInsight: `旅者可能先观察风险与反馈，再决定是否投入。这种谨慎能带来安全感，也可能让等待确定感变成行动的门槛。三次选择显示，旅者正在练习把判断权从外部回应逐步拿回自己手中。`,
+      psychologicalInsight: `旅者可能先观察风险与反馈，再决定是否投入。这种谨慎能带来安全感，也可能让等待确定感变成行动的门槛。三次开启显示，旅者正在练习把判断权从外部回应逐步拿回自己手中。`,
       selfAwareness: `可以留意：旅者此刻是在表达真实需要，还是在提前避免失望？把这两个动机分开，才能更清楚地理解下一次选择。`,
       fallback: true,
       fallbackReason: '解读接口暂时不可用，已使用本地备用解读。',
@@ -53,7 +53,7 @@ export default function App() {
   // Game progression state (起因 · 经过 · 结果)
   const [currentStage, setCurrentStage] = useState<number>(1);
   const [gamePhase, setGamePhase] = useState<GamePhase>('card_selection');
-  const [stageCards, setStageCards] = useState<TarotCardDef[]>(() => drawThreeCards([]));
+  const [stageCards, setStageCards] = useState<TarotCardDef[]>(() => drawOneCard([]));
   const [selectedCard, setSelectedCard] = useState<TarotCardDef | null>(null);
   const [stageHistory, setStageHistory] = useState<StageRecord[]>([]);
   const [finalHistory, setFinalHistory] = useState<StageRecord[]>([]);
@@ -136,6 +136,11 @@ export default function App() {
       setGamePhase('encounter_decision');
     }
   }, [gamePhase]);
+
+  const handleCardArrived = useCallback(() => {
+    setPace('pause');
+    audioService.playStarlightChime();
+  }, []);
 
   // Keyboard controls
   useEffect(() => {
@@ -233,13 +238,14 @@ export default function App() {
     }, 1500);
   }, []);
 
-  // 1. Player selects a Tarot Card (三选一) in the Distant Sky View
+  // 1. Player opens the single Tarot Card after walking up to it
   const handleSelectCard = useCallback((card: TarotCardDef) => {
     setUnlockedCardIds((prev) => prev.includes(card.id) ? prev : [...prev, card.id]);
     setSelectedCard(card);
     setGiftOffered(null);
     giftDecisionLockRef.current = false;
     setGamePhase('approaching');
+    setPace('walk');
     audioService.playWindWhisper();
   }, []);
 
@@ -334,7 +340,7 @@ export default function App() {
       const nextStage = currentStage + 1;
       setCurrentStage(nextStage);
       const usedIds = stageHistory.map((h) => h.card.id).concat(selectedCard ? [selectedCard.id] : []);
-      setStageCards(drawThreeCards(usedIds));
+      setStageCards(drawOneCard(usedIds));
       setSelectedCard(null);
       setGiftOffered(null);
       giftDecisionLockRef.current = false;
@@ -450,7 +456,7 @@ export default function App() {
     giftDecisionLockRef.current = false;
     setCurrentStage(1);
     setGamePhase('card_selection');
-    setStageCards(drawThreeCards([]));
+    setStageCards(drawOneCard([]));
     setSelectedCard(null);
     setStageHistory([]);
     setFinalHistory([]);
@@ -493,6 +499,7 @@ export default function App() {
         encounterActive={gamePhase === 'approaching' || gamePhase === 'encounter_decision'}
         encounterType={selectedCard?.encounter.type || null}
         onApproachArrived={handleArriveImmediately}
+        onCardArrived={handleCardArrived}
         giftOffered={giftOffered}
         onGiftDroppedOnEntity={() => handleGiftDecision(true)}
         language={language}
@@ -559,7 +566,7 @@ export default function App() {
           stage={currentStage}
           cards={stageCards}
           onSelectCard={handleSelectCard}
-          isVisible={gamePhase === 'card_selection'}
+          isVisible={gamePhase === 'card_selection' && pace === 'pause'}
           language={language}
         />
       )}

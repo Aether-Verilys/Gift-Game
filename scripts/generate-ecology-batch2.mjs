@@ -1,0 +1,19 @@
+import fs from 'node:fs';
+import { spawn } from 'node:child_process';
+const style = 'Mystical nocturnal cosmic tarot world, sculptural stylized realistic game asset, restrained charcoal and silver palette with subtle luminous accents, clean silhouette, isolated whole object, no background, no display pedestal, no text.';
+const assets = [
+ {id:'crystal-reeds', title:'紫晶芦苇', faces:12000, prompt:'One compact tuft of six slender crystalline reeds growing from a small shared root, tapered angular dark stems of varying heights, translucent-looking opaque lavender crystal tips, delicate silver facets, narrow upright silhouette. '},
+ {id:'spiral-fern', title:'螺旋星蕨', faces:15000, prompt:'One alien fern plant with five gracefully arching fronds radiating from a small central root, each frond has thick sculpted paired leaflets and a tightly curled fiddlehead tip, muted dark jade leaves with pale mint veins, botanically coherent connected solid geometry, no pot. '},
+ {id:'lantern-plant', title:'垂灯花', faces:14000, prompt:'One tall alien lantern plant with a slender curved charcoal stem arching at the top, a single hanging enclosed teardrop amber seedpod with thick silver ribs, two elegant pointed leaves on the lower stem, small natural root, warm golden pod contrasts with dark stalk, no pot. '},
+ {id:'moon-rock', title:'月岩簇', faces:10000, prompt:'One low asymmetric cluster of three fused weathered moon rocks, broad angular charcoal slate faces, chipped layered edges, sparse pale silver mineral seams and tiny muted blue crystalline inclusions, grounded broad base, natural geological formation, no vegetation. '},
+ {id:'broken-arch', title:'残月拱门', faces:18000, prompt:'One ancient ruined stone archway, two weathered square stone piers joined by a broken semicircular arch with chipped voussoirs, open doorway fully unobstructed, asymmetric missing outer stones but connected top arch, dark basalt stone with worn ivory edges and subtle engraved geometric lines, compact stone feet, no surrounding ground. '},
+];
+const root = 'output/tripo-p2/ecology-batch2';
+fs.mkdirSync(root,{recursive:true});
+fs.writeFileSync(`${root}/manifest.json`,JSON.stringify({model:'P2-20260801',texture_size:1024,assets:assets.map(a=>({...a,prompt:a.prompt+style}))},null,2));
+function run(args,log){return new Promise((resolve,reject)=>{const child=spawn('tripo',args,{env:{...process.env,HTTPS_PROXY:'http://127.0.0.1:7897',HTTP_PROXY:'http://127.0.0.1:7897'}});let stdout='';const stream=fs.createWriteStream(log);child.stdout.on('data',b=>stdout+=b);child.stderr.pipe(stream);child.on('error',reject);child.on('close',code=>{stream.end();if(code)reject(Error(`${code}: ${stdout}`));else{try{resolve(JSON.parse(stdout.trim()));}catch{reject(Error(stdout));}}});});}
+function args(a){return ['make',a.prompt+style,'--model','tripo-p2','-p',`face_limit=${a.faces}`,'-p','texture_quality=standard','-p','pbr=true','--then','convert:format=GLTF,texture_size=1024','--name',`ecology-${a.id}-p2`,'--out',`${root}/${a.id}`,'--no-open','--json','--yes'];}
+for(const a of assets){const plan=await run([...args(a),'--dry-run'],`${root}/${a.id}-plan.log`);if(!plan.valid)throw Error(JSON.stringify(plan));fs.writeFileSync(`${root}/${a.id}-plan.json`,JSON.stringify(plan,null,2));}
+console.log('Validated all five P2 plans.');
+async function worker(){while(assets.length){const a=assets.shift();try{console.log(`Generating ${a.id}`);const result=await run(args(a),`${root}/${a.id}.log`);fs.writeFileSync(`${root}/${a.id}-result.json`,JSON.stringify(result,null,2));if(!result.model_file)throw Error(`Download missing; recover task ${result.task_id}`);fs.copyFileSync(result.model_file,`public/assets/ecology/${a.id}.glb`);console.log(`Saved ${a.id}, ${result.credits_consumed} credits`);}catch(error){console.error(a.id,error);process.exitCode=1;}}}
+await Promise.all([worker(),worker()]);
