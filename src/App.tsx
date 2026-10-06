@@ -89,7 +89,7 @@ export default function App() {
 
   // Controls & Modals
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('gift-game.language') as Language) || 'zh');
+  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('gift-game.language') as Language) || 'en');
   const [zenMode, setZenMode] = useState<boolean>(false);
   const [isChronicleOpen, setIsChronicleOpen] = useState<boolean>(false);
   const [isCollectionOpen, setIsCollectionOpen] = useState(false);
