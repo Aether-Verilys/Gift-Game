@@ -25,6 +25,7 @@ interface CosmicThreeSceneProps {
   stageCards?: TarotCardDef[];
   stage?: number;
   onSelectCard?: (card: TarotCardDef) => void;
+  onCardSelectFlight?: (card: TarotCardDef, screenPosition: { x: number; y: number }) => void;
   encounterActive?: boolean;
   encounterType?: EncounterData['type'] | null;
   encounterCard?: TarotCardDef | null;
@@ -46,6 +47,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   stageCards = [],
   stage = 1,
   onSelectCard,
+  onCardSelectFlight,
   encounterActive = false,
   encounterType = null,
   encounterCard = null,
@@ -68,6 +70,7 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   const stageCardsRef = useRef<TarotCardDef[]>(stageCards);
   const stageRef = useRef(stage);
   const onSelectCardRef = useRef(onSelectCard);
+  const onCardSelectFlightRef = useRef(onCardSelectFlight);
   const updateCardsCallback = useRef<((cards: TarotCardDef[]) => void) | null>(null);
   const encounterActiveRef = useRef<boolean>(encounterActive);
   const encounterTypeRef = useRef<EncounterData['type'] | null>(encounterType);
@@ -138,6 +141,10 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
   useEffect(() => {
     onSelectCardRef.current = onSelectCard;
   }, [onSelectCard]);
+
+  useEffect(() => {
+    onCardSelectFlightRef.current = onCardSelectFlight;
+  }, [onCardSelectFlight]);
 
   useEffect(() => {
     encounterActiveRef.current = encounterActive;
@@ -1294,6 +1301,18 @@ export const CosmicThreeScene: React.FC<CosmicThreeSceneProps> = ({
             const sproutProgress = THREE.MathUtils.smoothstep(item.spinProgress, 0.55, 1.0);
             item.sproutProgress = sproutProgress;
             if (item.spinProgress >= 0.38 && item.spinProgress - dt / 1.5 < 0.38) cardScene.triggerRevealFx(item);
+            // When the card is visually gone, hand its screen position to the
+            // DOM overlay so the selected card can continue as a UI fly-to
+            // effect. The flag prevents duplicate events across frames.
+            if (!item.flyTriggered && item.spinProgress >= 0.55) {
+              item.flyTriggered = true;
+              const screenPoint = item.group.getWorldPosition(new THREE.Vector3()).project(camera);
+              const canvasRect = renderer.domElement.getBoundingClientRect();
+              onCardSelectFlightRef.current?.(item.cardDef, {
+                x: canvasRect.left + ((screenPoint.x + 1) * 0.5) * canvasRect.width,
+                y: canvasRect.top + ((1 - screenPoint.y) * 0.5) * canvasRect.height,
+              });
+            }
             item.group.position.lerpVectors(item.initialPos, item.groundPos, fallProgress);
             item.group.rotation.set(-Math.PI * 0.5 * fallProgress, item.initialRot.y, item.initialRot.z);
             item.group.scale.setScalar(cardScale);

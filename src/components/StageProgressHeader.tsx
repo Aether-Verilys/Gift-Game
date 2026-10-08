@@ -57,6 +57,7 @@ export const StageProgressHeader: React.FC<StageProgressHeaderProps> = ({
             return (
               <motion.div
                 key={s}
+                data-stage-card-slot={s}
                 initial={{ opacity: 0, scale: 0.9, y: 6 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 className={`relative isolate overflow-hidden w-14 h-22 sm:w-16 sm:h-24 rounded-[3px] p-1.5 flex flex-col justify-between backdrop-blur-md transition-all ${isBeingInserted ? 'card-slot-inset' : ''} ${
@@ -97,6 +98,7 @@ export const StageProgressHeader: React.FC<StageProgressHeaderProps> = ({
             return (
               <div
                 key={s}
+                data-stage-card-slot={s}
                 className="w-14 h-22 sm:w-16 sm:h-24 rounded-[3px] p-1.5 flex flex-col justify-between bg-white/[0.04] border border-white/30 border-dashed backdrop-blur-sm animate-pulse"
               >
                 <div className="text-[8px] font-artistic text-white/60">

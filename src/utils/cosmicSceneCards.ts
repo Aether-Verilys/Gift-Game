@@ -24,6 +24,7 @@ export interface Card3DItem {
   spinProgress: number;
   sproutProgress: number;
   dissolveProgress: number;
+  flyTriggered: boolean;
 }
 
 export interface TarotCardSceneController {
@@ -330,6 +331,7 @@ export function createTarotCardScene(options: {
           spinProgress: 0,
           sproutProgress: 0,
           dissolveProgress: 0,
+          flyTriggered: false,
         });
       });
     };

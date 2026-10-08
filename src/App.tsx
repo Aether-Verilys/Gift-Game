@@ -9,6 +9,7 @@ import { TopBar } from './components/TopBar';
 import { ChronicleModal } from './components/ChronicleModal';
 import { TarotCollectionModal } from './components/TarotCollectionModal';
 import { StageProgressHeader } from './components/StageProgressHeader';
+import { CardFlightOverlay } from './components/CardFlightOverlay';
 import { ALL_TAROT_CARDS, drawOneCard } from './data/tarotDeck';
 import {
   TarotCardDef,
@@ -145,6 +146,7 @@ export default function App() {
   const [unlockedCardIds, setUnlockedCardIds] = useState<string[]>(readUnlockedCards);
   const [chronicle, setChronicle] = useState<ChronicleEntry[]>([]);
   const [distance, setDistance] = useState<number>(0);
+  const [cardFlight, setCardFlight] = useState<{ card: TarotCardDef; start: { x: number; y: number }; stage: number } | null>(null);
 
   useEffect(() => { localStorage.setItem('gift-game.language', language); }, [language]);
 
@@ -206,6 +208,10 @@ export default function App() {
     setPace('pause');
     audioService.playStarlightChime();
   }, []);
+
+  const handleCardSelectFlight = useCallback((card: TarotCardDef, start: { x: number; y: number }) => {
+    setCardFlight({ card, start, stage: currentStage });
+  }, [currentStage]);
 
   // Keyboard controls
   useEffect(() => {
@@ -532,6 +538,7 @@ export default function App() {
   // Restart journey
   const handleRestart = useCallback(() => {
     setIsCollectionOpen(false);
+    setCardFlight(null);
     giftDecisionLockRef.current = false;
     setCurrentStage(1);
     setGamePhase('card_selection');
@@ -579,6 +586,7 @@ export default function App() {
         stageCards={stageCards}
         stage={currentStage}
         onSelectCard={handleSelectCard}
+        onCardSelectFlight={handleCardSelectFlight}
         encounterActive={gamePhase === 'approaching' || gamePhase === 'encounter_decision'}
         encounterType={selectedCard?.encounter.type || null}
         encounterCard={selectedCard}
@@ -624,6 +632,18 @@ export default function App() {
           />
         </div>
       )}
+
+      <AnimatePresence>
+        {cardFlight && (
+          <CardFlightOverlay
+            key={`${cardFlight.card.id}-${cardFlight.stage}`}
+            card={cardFlight.card}
+            start={cardFlight.start}
+            stage={cardFlight.stage}
+            onComplete={() => setCardFlight(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Perspective Shift Toast Indicator */}
       <AnimatePresence>
