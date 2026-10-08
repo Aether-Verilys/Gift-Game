@@ -1,0 +1,61 @@
+import { buildFinalReadingPrompt, type ReadingLanguage, type ReadingScores } from '../server/prompts/finalReadingPrompt';
+
+type VercelRequest = { method?: string; body?: any };
+type VercelResponse = { status(code: number): VercelResponse; json(body: unknown): void };
+
+type StageRecord = {
+  stageName?: string;
+  card: { numeral: string; nameEn: string; nameZh: string; keyword: string; keywordUpright?: string; keywordReversed?: string; encounter?: { giftReactionOffered: string; giftReactionKept: string } };
+  orientation: 'upright' | 'reversed';
+  offeredGift: boolean;
+  encounterName: string;
+  encounterDesc: string;
+};
+
+function fallback(history: StageRecord[], language: ReadingLanguage, scores: ReadingScores) {
+  const names = history.map((item) => language === 'en' ? item.card.nameEn : item.card.nameZh).join(language === 'en' ? ', ' : '、');
+  if (language === 'en') return {
+    metaphorTitle: 'A reading for the path you are choosing',
+    situationReading: `Your journey through ${names || 'the unknown'} reflects a gradual calibration between openness and self-protection.`,
+    psychologicalInsight: `Empathy ${scores.empathy}, insight ${scores.insight}, hesitation ${scores.hesitation}, boundary ${scores.boundary}. These are narrative signals, not a diagnosis.`,
+    selfAwareness: 'Notice whether the next pause protects a necessary boundary or postpones a choice you already understand.',
+    fallback: true,
+    fallbackReason: 'The AI reading service is unavailable, so a local reading is being shown.',
+  };
+  return {
+    metaphorTitle: '关于当下选择的内在地图',
+    situationReading: `从${names || '未知的道路'}经过时，你正在靠近与保护之间逐步校准自己的位置。`,
+    psychologicalInsight: `共情${scores.empathy}、洞察${scores.insight}、犹豫${scores.hesitation}、边界${scores.boundary}。这些是叙事线索，不是诊断。`,
+    selfAwareness: '留意下一次停顿：你是在保护必要的边界，还是在推迟一个其实已经看懂的选择？',
+    fallback: true,
+    fallbackReason: 'AI 解读接口不可用，已使用本地备用解读。',
+  };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { stageHistory, language: requestedLanguage, scores: requestedScores } = req.body || {};
+  const language: ReadingLanguage = requestedLanguage === 'en' ? 'en' : 'zh';
+  if (!Array.isArray(stageHistory) || stageHistory.length === 0) return res.status(400).json({ error: 'Missing stageHistory data' });
+  const scores: ReadingScores = {
+    empathy: Number(requestedScores?.empathy) || 2,
+    insight: Number(requestedScores?.insight) || 2,
+    hesitation: Number(requestedScores?.hesitation) || 2,
+    boundary: Number(requestedScores?.boundary) || 2,
+  };
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) return res.status(200).json(fallback(stageHistory, language, scores));
+  try {
+    const summary = stageHistory.map((item: StageRecord, i: number) => `${i + 1}. ${item.card.nameEn}/${item.card.nameZh}; ${item.encounterName}; ${item.offeredGift ? 'offered' : 'kept'}; ${item.orientation}`).join('\n');
+    const response = await fetch(`${(process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', messages: [{ role: 'user', content: buildFinalReadingPrompt(language, 'the choice taking shape now', summary, scores) }], temperature: 0.7, response_format: { type: 'json_object' } }),
+    });
+    if (!response.ok) throw new Error(`DeepSeek ${response.status}`);
+    const content = (await response.json() as any).choices?.[0]?.message?.content;
+    return res.status(200).json(JSON.parse(content));
+  } catch (error) {
+    console.error('DeepSeek request failed', error);
+    return res.status(200).json(fallback(stageHistory, language, scores));
+  }
+}
