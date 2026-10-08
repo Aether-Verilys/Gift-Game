@@ -1,4 +1,4 @@
-import { buildFinalReadingPrompt, type ReadingLanguage, type ReadingScores } from '../server/prompts/finalReadingPrompt';
+import { buildFinalReadingPrompt, type ReadingLanguage, type ReadingScores } from '../server/prompts/finalReadingPrompt.js';
 
 type VercelRequest = { method?: string; body?: any };
 type VercelResponse = { status(code: number): VercelResponse; json(body: unknown): void };
