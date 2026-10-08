@@ -448,8 +448,13 @@ export default function App() {
         body: JSON.stringify({ stageHistory: fullHistory, language, scores: readingScores }),
       })
         .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || '解读接口调用失败');
+          const contentType = res.headers.get('content-type') || '';
+          const raw = await res.text();
+          let data: Partial<LLMInterpretation> & { error?: string } = {};
+          if (raw && contentType.includes('application/json')) {
+            try { data = JSON.parse(raw); } catch { /* handled by the fallback below */ }
+          }
+          if (!res.ok) throw new Error(data.error || raw.slice(0, 160) || '解读接口调用失败');
           return data as LLMInterpretation;
         })
         .then(async (data: LLMInterpretation) => {
