@@ -13,7 +13,7 @@ type StageRecord = {
 };
 
 function fallback(history: StageRecord[], language: ReadingLanguage, scores: ReadingScores) {
-  const names = history.map((item) => language === 'en' ? item.card.nameEn : item.card.nameZh).join(language === 'en' ? ', ' : '、');
+  const names = history.map((item) => language === 'en' ? item?.card?.nameEn : item?.card?.nameZh).filter(Boolean).join(language === 'en' ? ', ' : '、');
   if (language === 'en') return {
     metaphorTitle: 'A reading for the path you are choosing',
     situationReading: `Your journey through ${names || 'the unknown'} reflects a gradual calibration between openness and self-protection.`,
@@ -33,12 +33,21 @@ function fallback(history: StageRecord[], language: ReadingLanguage, scores: Rea
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  let stageHistory: StageRecord[] = [];
+  let language: ReadingLanguage = 'zh';
+  let scores: ReadingScores = { empathy: 2, insight: 2, hesitation: 2, boundary: 2 };
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-    const { stageHistory, language: requestedLanguage, scores: requestedScores } = req.body || {};
-    const language: ReadingLanguage = requestedLanguage === 'en' ? 'en' : 'zh';
-    if (!Array.isArray(stageHistory) || stageHistory.length === 0) return res.status(400).json({ error: 'Missing stageHistory data' });
-    const scores: ReadingScores = {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+    const requestedLanguage = body.language;
+    const requestedScores = body.scores || {};
+    language = requestedLanguage === 'en' ? 'en' : 'zh';
+    if (!Array.isArray(body.stageHistory) || body.stageHistory.length === 0) return res.status(400).json({ error: 'Missing stageHistory data' });
+    if (body.stageHistory.some((item: StageRecord) => !item?.card || typeof item.card !== 'object')) {
+      return res.status(400).json({ error: 'Invalid stageHistory data' });
+    }
+    stageHistory = body.stageHistory;
+    scores = {
       empathy: Number(requestedScores?.empathy) || 2,
       insight: Number(requestedScores?.insight) || 2,
       hesitation: Number(requestedScores?.hesitation) || 2,
@@ -47,15 +56,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const key = process.env.DEEPSEEK_API_KEY;
     if (!key) return res.status(200).json(fallback(stageHistory, language, scores));
 
-    const summary = stageHistory.map((item: StageRecord, i: number) => `${i + 1}. ${item.card.nameEn}/${item.card.nameZh}; ${item.encounterName}; ${item.offeredGift ? 'offered' : 'kept'}; ${item.orientation}`).join('\n');
+    const summary = stageHistory.map((item, i) => `${i + 1}. ${item.card.nameEn || ''}/${item.card.nameZh || ''}; ${item.encounterName || ''}; ${item.offeredGift ? 'offered' : 'kept'}; ${item.orientation || ''}`).join('\n');
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const response = await fetch(`${(process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', messages: [{ role: 'user', content: buildFinalReadingPrompt(language, 'the choice taking shape now', summary, scores) }], temperature: 0.7, response_format: { type: 'json_object' } }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let response: Response;
+    try {
+      response = await fetch(`${(process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', messages: [{ role: 'user', content: buildFinalReadingPrompt(language, 'the choice taking shape now', summary, scores) }], temperature: 0.7, response_format: { type: 'json_object' } }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) throw new Error(`DeepSeek ${response.status}`);
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content || '';
@@ -64,18 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(JSON.parse(jsonMatch[0]));
   } catch (error) {
     console.error('Interpretation request failed', error);
-    // Keep provider failures inside the JSON contract expected by the client.
-    const body = req.body || {};
-    const history = Array.isArray(body.stageHistory) ? body.stageHistory : [];
-    const language: ReadingLanguage = body.language === 'en' ? 'en' : 'zh';
-    const requestedScores = body.scores || {};
-    const scores: ReadingScores = {
-      empathy: Number(requestedScores.empathy) || 2,
-      insight: Number(requestedScores.insight) || 2,
-      hesitation: Number(requestedScores.hesitation) || 2,
-      boundary: Number(requestedScores.boundary) || 2,
-    };
-    if (history.length > 0) return res.status(200).json(fallback(history, language, scores));
+    if (stageHistory.length > 0) return res.status(200).json(fallback(stageHistory, language, scores));
     return res.status(500).json({ error: 'Unable to create interpretation' });
   }
 }
